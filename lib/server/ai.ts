@@ -225,6 +225,26 @@ function chatCompletionText(payload: Record<string, unknown>) {
   return typeof first?.message?.content === "string" ? first.message.content : "";
 }
 
+async function runOpenRouter(key: string, model: string, options: AiRunOptions) {
+  if (options.webSearch)
+    throw new Error("OpenRouter chat does not support built-in web research in this app. Disable web search or choose a provider with native web search.");
+  const payload = await providerFetch("openrouter", "https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "http://127.0.0.1:3000",
+      "X-Title": "Control Center",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: options.prompt }],
+      max_tokens: Math.min(4_096, boundedTokens(options.maxOutputTokens)),
+    }),
+  });
+  return chatCompletionText(payload);
+}
+
 async function runXai(key: string, model: string, options: AiRunOptions) {
   const payload = await providerFetch("xai", "https://api.x.ai/v1/responses", {
     method: "POST",
@@ -292,7 +312,9 @@ export async function runConfiguredAi(
         ? await runGemini(key, model, options)
         : provider === "xai"
           ? await runXai(key, model, options)
-          : await runLocalAi(settings, provider, key, model, options, selectedModel.contextLength);
+          : provider === "openrouter"
+            ? await runOpenRouter(key, model, options)
+            : await runLocalAi(settings, provider, key, model, options, selectedModel.contextLength);
   if (!text.trim()) throw new Error(`${provider} returned no usable text.`);
   return { provider, model, text };
 }
