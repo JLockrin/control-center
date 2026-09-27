@@ -27,7 +27,7 @@ function settingsFor(provider: AiKeyProvider, model = ""): StoredSettings {
     audience: { accounts: [] },
     ai: {
       provider, model,
-      apiKeys: { openai: "openai-test-key", anthropic: "anthropic-test-key", gemini: "gemini-test-key", xai: "xai-test-key", lmstudio: "", ollama: "" },
+      apiKeys: { openai: "openai-test-key", anthropic: "anthropic-test-key", gemini: "gemini-test-key", xai: "xai-test-key", openrouter: "openrouter-test-key", lmstudio: "", ollama: "" },
       localBaseUrls: { ...DEFAULT_LOCAL_AI_URLS },
     },
     dailyBrief: { sourceLabels: [], lookbackDays: 7, sections: { industry: 5, mentions: 5, newsletters: 5 } },
@@ -48,6 +48,30 @@ async function withFetch<T>(fetcher: typeof fetch, run: () => Promise<T>) {
     }
   }
 }
+
+test("OpenRouter uses chat completions without web search tools", async () => {
+  const { runConfiguredAi } = await import("../lib/server/ai");
+  const result = await withFetch((async (url, init) => {
+    assert.equal(String(url), "https://openrouter.ai/api/v1/chat/completions");
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.get("authorization"), "Bearer openrouter-test-key");
+    assert.equal(headers.get("http-referer"), "http://127.0.0.1:3000");
+    assert.equal(headers.get("x-title"), "Control Center");
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.model, "deepseek/deepseek-chat-v3-0324");
+    assert.equal(body.tools, undefined);
+    return Response.json({ choices: [{ message: { content: '{"stories":[]}' } }] });
+  }) as typeof fetch, () => runConfiguredAi(settingsFor("openrouter", "deepseek/deepseek-chat-v3-0324"), { prompt: "Rank these collected pages" }));
+  assert.equal(result.text, '{"stories":[]}');
+  assert.equal(result.provider, "openrouter");
+});
+
+test("OpenRouter rejects built-in web research requests", async () => {
+  const { runConfiguredAi } = await import("../lib/server/ai");
+  await withFetch(fetch, async () => {
+    await assert.rejects(runConfiguredAi(settingsFor("openrouter", "deepseek/deepseek-chat-v3-0324"), { prompt: "Find sources", webSearch: true }), /does not provide live web research/);
+  });
+});
 
 test("Grok uses authenticated Responses with native web search, not a fabricated lookup", async () => {
   const { runConfiguredAi } = await import("../lib/server/ai");

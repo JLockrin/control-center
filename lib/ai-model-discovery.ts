@@ -83,6 +83,11 @@ export async function fetchAiModels(
     return normalizeAiModels(provider, data);
   }
 
+  if (provider === "openrouter") {
+    const data = await request("https://openrouter.ai/api/v1/models");
+    return normalizeAiModels(provider, data);
+  }
+
   const endpoint = provider === "openai"
     ? "https://api.openai.com/v1/models"
     : provider === "anthropic"

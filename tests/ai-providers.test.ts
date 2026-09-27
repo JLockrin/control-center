@@ -8,7 +8,7 @@ import { fetchAiModels } from "../lib/ai-model-discovery";
 import type { AiKeyProvider } from "../lib/types";
 import { assertLocalAiContext, localAiContextBudget } from "../lib/ai-local-context";
 
-const noKeys = { openai: false, anthropic: false, gemini: false, xai: false, lmstudio: false, ollama: false };
+const noKeys = { openai: false, anthropic: false, gemini: false, xai: false, openrouter: false, lmstudio: false, ollama: false };
 
 test("local AI does not require a paid key and cannot fabricate live web research", () => {
   for (const provider of ["lmstudio", "ollama"] as const) {
@@ -19,14 +19,16 @@ test("local AI does not require a paid key and cannot fabricate live web researc
   assert.equal(isAiReady({ provider: "openai", keySet: noKeys }), false);
   assert.equal(isAiReady({ provider: "none", keySet: { ...noKeys, openai: true } }), false);
   assert.equal(aiSupportsWebSearch("xai"), true);
+  assert.equal(aiSupportsWebSearch("openrouter"), false);
 });
 
 test("provider keys are isolated and Ollama cloud keys never reach local inference", () => {
-  const environment = { OPENAI_API_KEY: "open-key", ANTHROPIC_API_KEY: "claude-key", GOOGLE_API_KEY: "gemini-key", XAI_API_KEY: "grok-key", OLLAMA_API_KEY: "cloud-only" };
+  const environment = { OPENAI_API_KEY: "open-key", ANTHROPIC_API_KEY: "claude-key", GOOGLE_API_KEY: "gemini-key", XAI_API_KEY: "grok-key", OPENROUTER_API_KEY: "router-key", OLLAMA_API_KEY: "cloud-only" };
   assert.equal(aiEnvironmentKey("openai", environment), "open-key");
   assert.equal(aiEnvironmentKey("anthropic", environment), "claude-key");
   assert.equal(aiEnvironmentKey("gemini", environment), "gemini-key");
   assert.equal(aiEnvironmentKey("xai", environment), "grok-key");
+  assert.equal(aiEnvironmentKey("openrouter", environment), "router-key");
   assert.equal(aiEnvironmentKey("lmstudio", environment), "");
   assert.equal(aiEnvironmentKey("ollama", environment), "");
   assert.equal(aiEnvironmentKey("ollama", { ...environment, OLLAMA_LOCAL_API_KEY: " local-token " }), "local-token");
@@ -60,6 +62,12 @@ test("cloud model menus contain usable text models, not embeddings, image or aud
     { id: "grok-4.6", output_modalities: ["text"] }, { id: "grok-imagine-image", output_modalities: ["image"] },
   ] }).map((model) => model.id), ["grok-4.6"]);
   assert.deepEqual(normalizeAiModels("anthropic", { data: [{ id: "claude-sonnet-4-6", display_name: "Claude Sonnet" }] }), [{ id: "claude-sonnet-4-6", label: "Claude Sonnet" }]);
+  assert.deepEqual(normalizeAiModels("openrouter", { data: [
+    { id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek Chat" },
+    { id: "openai/text-embedding-3-small", name: "Embeddings" },
+    { id: "openai/gpt-image-1", name: "Image" },
+    { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3" },
+  ] }).map((model) => model.id), ["deepseek/deepseek-chat-v3-0324", "meta-llama/llama-3.3-70b-instruct"]);
 });
 
 test("LM Studio only lists loaded LLM instances and supports older v0 loaded state", () => {
@@ -96,6 +104,19 @@ test("Ollama menus exclude unloaded, cloud and embedding-only models", async () 
   assert.deepEqual(models.map((model) => model.id), ["qwen3:8b"]);
   assert.equal(requested.length, 4);
   assert.ok(requested.every((url) => /\/api\/(ps|show)$/.test(url)));
+});
+
+test("OpenRouter discovery uses its fixed models endpoint with bearer auth", async () => {
+  let called = "";
+  const fetcher = (async (url, init) => {
+    called = String(url);
+    assert.equal(init?.redirect, "manual");
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer router-key");
+    return Response.json({ data: [{ id: "deepseek/deepseek-chat-v3-0324", name: "DeepSeek Chat" }] });
+  }) as typeof fetch;
+  const models = await fetchAiModels({ provider: "openrouter", apiKey: "router-key" }, fetcher);
+  assert.equal(called, "https://openrouter.ai/api/v1/models");
+  assert.deepEqual(models.map((model) => model.id), ["deepseek/deepseek-chat-v3-0324"]);
 });
 
 test("discovery uses fixed provider origins and never forwards keys after redirects", async () => {
