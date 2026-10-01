@@ -19,6 +19,8 @@ export type MentionQueryPlan = {
   queryContexts: string[];
 };
 
+export type MentionRelevanceMode = "off" | "require-any";
+
 export type MentionEvidence = {
   canonicalUrl?: string;
   publisher?: string;
@@ -27,6 +29,14 @@ export type MentionEvidence = {
   queryContexts?: string[];
   nicheContexts?: string[];
   negativeTerms?: string[];
+  /** Opposite of negativeTerms: KEEP only when at least one appears near the match. */
+  requireAnyContexts?: string[];
+  /**
+   * Primaries that use discover-then-filter. Empty means the gate is off for
+   * every primary (existing brand Mentions stay unchanged).
+   */
+  requireContextsTerms?: string[];
+  relevanceMode?: MentionRelevanceMode;
 };
 
 export type MentionEvaluation = {
@@ -35,6 +45,10 @@ export type MentionEvaluation = {
   review: boolean;
   score: number;
   reasons: string[];
+  /** True when identity corroboration passed; required-context / LLM gates may still reject. */
+  identityAccepted: boolean;
+  /** requireAnyContexts terms found near the match. */
+  matchedRequiredContexts: string[];
 };
 
 export type MentionFreshnessEvidence = {
@@ -378,6 +392,50 @@ export function isFreshMentionEvidence(
   return isWithinMentionWindow(evidence.firstDiscoveredAt?.trim() || "", options);
 }
 
+function rejectedMention(
+  reasons: string[],
+  extras: Partial<Pick<MentionEvaluation, "identityAccepted" | "matchedRequiredContexts">> = {},
+): MentionEvaluation {
+  return {
+    accepted: false,
+    confidence: "medium",
+    review: false,
+    score: 0,
+    reasons,
+    identityAccepted: false,
+    matchedRequiredContexts: [],
+    ...extras,
+  };
+}
+
+/**
+ * After identity acceptance, optionally require ≥1 configured context near the
+ * match. This is the polarity inverse of negativeTerms (which exclude).
+ */
+export function matchedRequiredContextsNearMention(
+  contextText: string,
+  requireAnyContexts: string[] | undefined,
+) {
+  return (requireAnyContexts ?? []).filter((term) => containsMentionSignal(contextText, term));
+}
+
+/**
+ * Discover-then-filter applies only to allowlisted Mentions primaries.
+ * An empty allowlist is intentionally off for all primaries so existing brand
+ * watches are unchanged when requireAnyContexts is configured for a subset.
+ */
+export function primaryUsesRequireContexts(
+  primary: string,
+  requireContextsTerms: string[] | undefined,
+) {
+  const allowlist = (requireContextsTerms ?? [])
+    .map((term) => normalizeSignal(term))
+    .filter(Boolean);
+  if (!allowlist.length) return false;
+  const key = normalizeSignal(primary);
+  return Boolean(key) && allowlist.includes(key);
+}
+
 export function evaluateMention(
   item: LiveStory,
   primary: string,
@@ -400,18 +458,17 @@ export function evaluateMention(
   const literalHandleEvidence = containsExplicitHandle(directText, primary) ||
     containsObservedHandle(directText, primary);
   const negativeContextText = `${feedText} ${pageIdentityContext} ${publisherText}`;
-  const matchedNegative = (evidence.negativeTerms ?? []).find((term) => containsMentionSignal(negativeContextText, term));
-  if (matchedNegative) {
-    return { accepted: false, confidence: "medium", review: false, score: 0, reasons: [`Excluded context: ${matchedNegative}`] };
+  const scopedRequireContexts = primaryUsesRequireContexts(primary, evidence.requireContextsTerms);
+  // Allowlisted discover-then-filter primaries skip global negativeTerms so
+  // lawsuit/arrest/allegation language can KEEP for those watches only.
+  if (!scopedRequireContexts) {
+    const matchedNegative = (evidence.negativeTerms ?? []).find((term) => containsMentionSignal(negativeContextText, term));
+    if (matchedNegative) {
+      return rejectedMention([`Excluded context: ${matchedNegative}`]);
+    }
   }
   if (!primaryDirect) {
-    return {
-      accepted: false,
-      confidence: "medium",
-      review: false,
-      score: 0,
-      reasons: ["Rejected: the result contained no literal identity evidence."],
-    };
+    return rejectedMention(["Rejected: the result contained no literal identity evidence."]);
   }
 
   const matchedSignals = identitySignals.filter((signal) => containsIdentitySignal(corroborationText, signal));
@@ -439,7 +496,7 @@ export function evaluateMention(
     primaryIsUnique || literalHandleEvidence || strongCorroborator || otherSignals.length > 0 || matchedAnchors.length >= 2 || directPageIdentityContext
   );
   const reviewCandidate = !highConfidence && !strictMode;
-  const accepted = highConfidence || reviewCandidate;
+  const identityAccepted = highConfidence || reviewCandidate;
   const reasons = [
     `Content match: ${primary}`,
     ...otherSignals.slice(0, 3).map((signal) => `Identity signal: ${signal}`),
@@ -447,12 +504,51 @@ export function evaluateMention(
     ...matchedNiche.slice(0, 3).map((signal) => `Niche context: ${signal}`),
     ...(directPageIdentityContext ? ["Verified on the canonical page with configured identity context"] : []),
   ];
-  if (!accepted && strictMode) reasons.push("Rejected: an ambiguous identity lacked corroboration.");
+  if (!identityAccepted && strictMode) reasons.push("Rejected: an ambiguous identity lacked corroboration.");
+  if (!identityAccepted) {
+    return {
+      accepted: false,
+      confidence: "medium",
+      review: false,
+      score,
+      reasons,
+      identityAccepted: false,
+      matchedRequiredContexts: [],
+    };
+  }
+
+  const matchedRequiredContexts = scopedRequireContexts
+    ? matchedRequiredContextsNearMention(negativeContextText, evidence.requireAnyContexts)
+    : [];
+  const relevanceMode = evidence.relevanceMode ?? "off";
+  const requireContexts = scopedRequireContexts &&
+    relevanceMode === "require-any" &&
+    (evidence.requireAnyContexts?.length ?? 0) > 0;
+  if (requireContexts && !matchedRequiredContexts.length) {
+    return {
+      accepted: false,
+      confidence: highConfidence ? "high" : "medium",
+      review: false,
+      score,
+      reasons: [
+        ...reasons,
+        "Rejected: identity matched but none of the required contexts appeared near the mention.",
+      ],
+      identityAccepted: true,
+      matchedRequiredContexts: [],
+    };
+  }
+
   return {
-    accepted,
+    accepted: true,
     confidence: highConfidence ? "high" : "medium",
-    review: accepted && !highConfidence,
+    review: !highConfidence,
     score,
-    reasons,
+    reasons: [
+      ...reasons,
+      ...matchedRequiredContexts.slice(0, 4).map((term) => `Required context: ${term}`),
+    ],
+    identityAccepted: true,
+    matchedRequiredContexts,
   };
 }

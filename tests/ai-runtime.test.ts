@@ -22,7 +22,18 @@ function settingsFor(provider: AiKeyProvider, model = ""): StoredSettings {
   return {
     general: { workspaceName: "Test workspace" },
     industry: { sources: [], keywords: [], description: "Manufacturing", excludedTerms: [], dailyLimit: 30 },
-    mentions: { terms: [], websites: [], identityAnchors: [], negativeTerms: [], strictMode: true, excludeOwnedSites: true },
+    mentions: {
+      terms: [],
+      websites: [],
+      identityAnchors: [],
+      negativeTerms: [],
+      requireAnyContexts: [],
+      requireContextsTerms: [],
+      relevanceMode: "off",
+      llmRelevanceGate: false,
+      strictMode: true,
+      excludeOwnedSites: true,
+    },
     newsletters: { googleClientId: "", googleClientSecret: "", connectedEmail: "", refreshToken: "", accessToken: "", accessTokenExpiresAt: 0, gmailQuery: "" },
     audience: { accounts: [] },
     ai: {

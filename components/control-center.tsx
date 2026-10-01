@@ -120,6 +120,10 @@ const emptySettings: PublicSettings = {
     websites: [],
     identityAnchors: [],
     negativeTerms: [],
+    requireAnyContexts: [],
+    requireContextsTerms: [],
+    relevanceMode: "off",
+    llmRelevanceGate: false,
     strictMode: true,
     excludeOwnedSites: true,
   },
@@ -2743,7 +2747,7 @@ function SettingsView({
               />
               <TagEditor
                 label="Exclude namesakes and false contexts"
-                help="Add words tied to recurring false positives: another person's employer, sport, location, profession, product, or an unrelated meaning of the brand phrase."
+                help="EXCLUDES pages when these words appear near the match. Use for recurring false positives (another employer, sport, location, or unrelated brand meaning). Do not put cult/abuse/scandal cues here when you want to keep negative-press coverage."
                 values={draft.mentions.negativeTerms}
                 onChange={(negativeTerms) =>
                   setDraft((value) => ({
@@ -2753,6 +2757,78 @@ function SettingsView({
                 }
                 placeholder="e.g. professional golfer"
               />
+              <TagEditor
+                label="Require contexts (keep only if present)"
+                help="KEEPS only pages that also contain at least one of these contexts near the match — the opposite of exclusions above. Applies only to the Mentions names listed under “Apply require-contexts to these names”. Use for discover-then-filter watches (e.g. cult, abuse, allegation, investigation)."
+                values={draft.mentions.requireAnyContexts}
+                onChange={(requireAnyContexts) =>
+                  setDraft((value) => ({
+                    ...value,
+                    mentions: { ...value.mentions, requireAnyContexts },
+                  }))
+                }
+                placeholder="e.g. allegation"
+              />
+              <TagEditor
+                label="Apply require-contexts to these names"
+                help="Only these Mentions names/brands use required contexts and the optional AI relevance gate. Leave empty so brand watches stay unchanged. For allowlisted names, exclusion contexts (negativeTerms) are skipped so lawsuit/arrest language can KEEP."
+                values={draft.mentions.requireContextsTerms}
+                onChange={(requireContextsTerms) =>
+                  setDraft((value) => ({
+                    ...value,
+                    mentions: { ...value.mentions, requireContextsTerms },
+                  }))
+                }
+                placeholder="e.g. Harvest Home"
+              />
+              <label className="toggle-row">
+                <SettingsInput
+                  type="checkbox"
+                  checked={draft.mentions.relevanceMode === "require-any"}
+                  onChange={(event) =>
+                    setDraft((value) => ({
+                      ...value,
+                      mentions: {
+                        ...value.mentions,
+                        relevanceMode: event.target.checked ? "require-any" : "off",
+                      },
+                    }))
+                  }
+                />
+                <span>
+                  <b>Require at least one context</b>
+                  <small>
+                    After identity acceptance, drop allowlisted-name hits that
+                    lack every required-context term. Off by default; an empty
+                    name allowlist also leaves every Mentions primary unchanged.
+                  </small>
+                </span>
+              </label>
+              <label className="toggle-row">
+                <SettingsInput
+                  type="checkbox"
+                  checked={draft.mentions.llmRelevanceGate}
+                  onChange={(event) =>
+                    setDraft((value) => ({
+                      ...value,
+                      mentions: {
+                        ...value.mentions,
+                        llmRelevanceGate: event.target.checked,
+                      },
+                    }))
+                  }
+                />
+                <span>
+                  <b>AI relevance keep/drop</b>
+                  <small>
+                    For allowlisted names only: after identity passes, ask the
+                    configured AI to KEEP or DROP when required contexts miss or
+                    are empty. Keyword matches short-circuit to KEEP. If AI is
+                    unavailable, falls back to keyword required contexts;
+                    LLM-only watches fail closed.
+                  </small>
+                </span>
+              </label>
               <label className="toggle-row">
                 <SettingsInput
                   type="checkbox"

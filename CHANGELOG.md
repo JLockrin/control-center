@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Mentions discover-then-filter: `requireAnyContexts` + `relevanceMode` keep only identity-matched pages that also contain at least one required cue near the match (opposite of `negativeTerms` exclusions).
+- Scope that gate with `requireContextsTerms` (empty = off for all primaries). Allowlisted primaries skip global `negativeTerms` so lawsuit/arrest language can KEEP while brand watches keep their exclusions.
+- Optional Mentions `llmRelevanceGate` keep/drop after identity for allowlisted primaries only; keyword hits short-circuit, AI failures fall back to keyword required contexts or fail closed for LLM-only watches.
+- Documented Farm (Holden MO) Mentions merge-alongside-brands preset under `docs/farm-mentions-watch.preset.json` (not auto-applied).
+
 ## 0.3.1 - 2026-08-25
 
 - Added persistent dark mode with a saved theme preference.

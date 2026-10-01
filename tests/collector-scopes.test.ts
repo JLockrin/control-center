@@ -4,7 +4,18 @@ import { industryCacheScope, mentionsCacheScope } from "../lib/collector-scopes"
 
 const settings: Parameters<typeof industryCacheScope>[0] = {
   industry: {sources:[],keywords:["gardening"],description:"Local gardening news",excludedTerms:[],dailyLimit:30},
-  mentions: {terms:["Example"],websites:[],identityAnchors:["Gardening"],negativeTerms:[],strictMode:true,excludeOwnedSites:true},
+  mentions: {
+    terms: ["Example"],
+    websites: [],
+    identityAnchors: ["Gardening"],
+    negativeTerms: [],
+    requireAnyContexts: [],
+    requireContextsTerms: [],
+    relevanceMode: "off",
+    llmRelevanceGate: false,
+    strictMode: true,
+    excludeOwnedSites: true,
+  },
   ai: {provider:"none",model:"",localBaseUrls:{lmstudio:"http://127.0.0.1:1234",ollama:"http://127.0.0.1:11434"}},
 };
 
@@ -20,4 +31,22 @@ test("changing the selected local runtime invalidates both saved AI response sco
   const changed = {...local,ai:{...local.ai,localBaseUrls:{lmstudio:"http://127.0.0.1:1234",ollama:"http://127.0.0.1:11435"}}};
   assert.notEqual(industryCacheScope(local),industryCacheScope(changed));
   assert.notEqual(mentionsCacheScope(local),mentionsCacheScope(changed));
+});
+
+test("Mentions require-context and LLM gate settings invalidate the saved Mentions scope", () => {
+  const required = {
+    ...settings,
+    mentions: {
+      ...settings.mentions,
+      requireAnyContexts: ["allegation"],
+      requireContextsTerms: ["Example"],
+      relevanceMode: "require-any" as const,
+    },
+  };
+  const gated = {
+    ...settings,
+    mentions: { ...settings.mentions, llmRelevanceGate: true },
+  };
+  assert.notEqual(mentionsCacheScope(settings), mentionsCacheScope(required));
+  assert.notEqual(mentionsCacheScope(settings), mentionsCacheScope(gated));
 });

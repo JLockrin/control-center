@@ -60,6 +60,18 @@ export type PublicSettings = {
     websites: string[];
     identityAnchors: string[];
     negativeTerms: string[];
+    /** Keep only when at least one of these contexts appears near the match (opposite of negativeTerms). */
+    requireAnyContexts: string[];
+    /**
+     * Mentions primary terms that use requireAnyContexts / llmRelevanceGate.
+     * Empty = off for every primary (safe default; brand watches stay unchanged).
+     * For allowlisted primaries, negativeTerms exclusions are skipped.
+     */
+    requireContextsTerms: string[];
+    /** "off" skips requireAnyContexts; "require-any" enforces them when the list is non-empty. */
+    relevanceMode: "off" | "require-any";
+    /** Optional AI keep/drop after identity; see Mentions docs for fallback semantics. */
+    llmRelevanceGate: boolean;
     strictMode: boolean;
     excludeOwnedSites: boolean;
   };
@@ -93,8 +105,26 @@ export type SettingsUpdate = Omit<
 > & {
   industry: Omit<PublicSettings["industry"], "description" | "excludedTerms" | "dailyLimit"> &
     Partial<Pick<PublicSettings["industry"], "description" | "excludedTerms" | "dailyLimit">>;
-  mentions: Omit<PublicSettings["mentions"], "negativeTerms" | "excludeOwnedSites"> &
-    Partial<Pick<PublicSettings["mentions"], "negativeTerms" | "excludeOwnedSites">>;
+  mentions: Omit<
+    PublicSettings["mentions"],
+    | "negativeTerms"
+    | "excludeOwnedSites"
+    | "requireAnyContexts"
+    | "requireContextsTerms"
+    | "relevanceMode"
+    | "llmRelevanceGate"
+  > &
+    Partial<
+      Pick<
+        PublicSettings["mentions"],
+        | "negativeTerms"
+        | "excludeOwnedSites"
+        | "requireAnyContexts"
+        | "requireContextsTerms"
+        | "relevanceMode"
+        | "llmRelevanceGate"
+      >
+    >;
   newsletters: PublicSettings["newsletters"] & {
     googleClientSecret?: string;
   };

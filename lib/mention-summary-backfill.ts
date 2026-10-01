@@ -4,6 +4,7 @@ import {
   evaluateMention,
   isFreshMentionEvidence,
   isMentionProviderWrapper,
+  type MentionRelevanceMode,
 } from "./mention-filter";
 import type { AiKeyProvider, LiveStory } from "./types";
 
@@ -79,6 +80,9 @@ export function revalidateMentionSummaryBackfill(
     identityAnchors: string[];
     nicheContexts: string[];
     negativeTerms: string[];
+    requireAnyContexts?: string[];
+    requireContextsTerms?: string[];
+    relevanceMode?: MentionRelevanceMode;
     strictMode: boolean;
     excludeOwnedSites: boolean;
     websites: string[];
@@ -128,6 +132,9 @@ export function revalidateMentionSummaryBackfill(
         pageText: page.pageText,
         nicheContexts: options.nicheContexts,
         negativeTerms: options.negativeTerms,
+        requireAnyContexts: options.requireAnyContexts,
+        requireContextsTerms: options.requireContextsTerms,
+        relevanceMode: options.relevanceMode,
       },
     );
     if (!evaluation.accepted) continue;
