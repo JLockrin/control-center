@@ -1,0 +1,41 @@
+{
+  "_comment": "Harvest Home / Our Father's Farm (Holden MO, Calhouns) — Mentions discover-then-filter preset. Copy the `mentions` fragment into Settings → Mentions (or merge into your local settings.json). Do NOT put cult/abuse/scandal into negativeTerms. Not JPUSA Doniphan / Grand Valley / Wisconsin Harvest Home Farm.",
+  "mentions": {
+    "terms": [
+      "Our Father's Farm",
+      "Harvest Home"
+    ],
+    "websites": [
+      "thefarmprojectmo.org",
+      "harvesthome.org",
+      "ourfathersfarm.org"
+    ],
+    "identityAnchors": [
+      "Holden",
+      "Missouri",
+      "Calhoun",
+      "thefarmprojectmo",
+      "Our Father's Farm",
+      "Harvest Home, Inc."
+    ],
+    "negativeTerms": [],
+    "requireAnyContexts": [
+      "cult",
+      "abuse",
+      "scandal",
+      "allegation",
+      "whistleblower",
+      "investigation",
+      "ex-member",
+      "BITE",
+      "lawsuit",
+      "sheriff",
+      "survivor",
+      "fear"
+    ],
+    "relevanceMode": "require-any",
+    "llmRelevanceGate": true,
+    "strictMode": true,
+    "excludeOwnedSites": true
+  }
+}

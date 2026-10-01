@@ -521,3 +521,205 @@ test("configured negative context rejects an otherwise strong candidate", () => 
   assert.equal(result.accepted, false);
   assert.match(result.reasons[0], /Excluded context: golf/);
 });
+
+const FARM_TERMS = ["Our Father's Farm", "Harvest Home"];
+const FARM_ANCHORS = ["Holden", "Missouri", "Calhoun", "thefarmprojectmo", "Our Father's Farm"];
+const FARM_REQUIRE_ANY = [
+  "cult", "abuse", "scandal", "allegation", "whistleblower", "investigation",
+  "ex-member", "BITE", "lawsuit", "sheriff", "survivor", "fear",
+];
+const FARM_RELEVANCE = {
+  negativeTerms: [] as string[],
+  requireAnyContexts: FARM_REQUIRE_ANY,
+  relevanceMode: "require-any" as const,
+};
+
+function farmEval(overrides: Partial<LiveStory>, pageText: string, primary = "Harvest Home") {
+  return evaluateMention(
+    story(overrides),
+    primary,
+    FARM_TERMS,
+    FARM_ANCHORS,
+    true,
+    { pageText, ...FARM_RELEVANCE },
+  );
+}
+
+test("Farm discover-then-filter KEEPs negative-press identity hits (Holden Harvest Home)", () => {
+  const home = farmEval(
+    {
+      title: "Home | The Farm Project",
+      url: "https://www.thefarmprojectmo.org/",
+      summary: "Ex-farm members advocating and educating.",
+    },
+    "The Farm is Harvest Home / Our Father’s Farm in Holden Missouri. Ex-farm members advocating, educating, cult-leaving guidance. thefarmprojectmo.org",
+  );
+  assert.equal(home.accepted, true);
+  assert.equal(home.identityAccepted, true);
+  assert.ok(home.matchedRequiredContexts.includes("cult"));
+
+  const jsStory = farmEval(
+    {
+      title: "J's Story — The Farm Project",
+      url: "https://www.thefarmprojectmo.org/post/j-s-story",
+      summary: "Ex-resident account.",
+    },
+    "Ex-resident account of fear, confusion, deliverances, and pressure at the Farm / Harvest Home in Holden. thefarmprojectmo",
+  );
+  assert.equal(jsStory.accepted, true);
+  assert.ok(jsStory.matchedRequiredContexts.includes("fear"));
+
+  const podcast = farmEval(
+    {
+      title: "The Farm Project podcast — Is Harvest Home A Cult?",
+      url: "https://podcasts.apple.com/us/podcast/the-farm-project/id1643972313",
+      summary: "Hosts discuss Harvest Home.",
+    },
+    "Hosts discuss whether Harvest Home (The Farm) in Holden Missouri is a cult; ex-member stories and BITE-model framing. Calhoun",
+  );
+  assert.equal(podcast.accepted, true);
+  assert.ok(podcast.matchedRequiredContexts.some((term) => ["cult", "ex-member", "BITE"].includes(term)));
+
+  const mercer = farmEval(
+    {
+      title: "Allen County sheriff looking at allegations against Teens for Christ",
+      url: "https://mercercountyoutlook.net/2022/07/22/allen-county-ohio-sheriffs-office-looking-at-allegations-against-local-teens-for-christ/",
+      summary: "Sheriff reviewing online allegations.",
+    },
+    "Sheriff reviewing online allegations; article references a Harvest Home Farm posting in Missouri tied to the material.",
+  );
+  assert.equal(mercer.accepted, true);
+  assert.ok(mercer.matchedRequiredContexts.some((term) => ["allegation", "sheriff"].includes(term)));
+});
+
+test("Farm discover-then-filter DROPs promo, ag noise, and wrong-entity collisions", () => {
+  const ministry = farmEval(
+    {
+      title: "Harvest Home — Our Father's Farm (ministry site)",
+      url: "https://harvesthome.org/",
+      summary: "Not-for-profit founded by Danny & Rhonda Calhoun.",
+    },
+    "Not-for-profit founded by Danny & Rhonda Calhoun; hope, healing, residential community at Our Father's Farm, Holden MO.",
+  );
+  assert.equal(ministry.identityAccepted, true);
+  assert.equal(ministry.accepted, false);
+  assert.match(ministry.reasons.at(-1) || "", /required contexts/i);
+
+  const guidestar = farmEval(
+    {
+      title: "Harvest Home, Inc. — GuideStar Profile",
+      url: "https://www.guidestar.org/profile/43-1723890",
+      summary: "Nonprofit profile for Harvest Home Inc, Holden MO.",
+    },
+    "Nonprofit profile for Harvest Home Inc, Holden MO EIN 43-1723890; gardens and ministry description. Calhoun",
+  );
+  assert.equal(guidestar.identityAccepted, true);
+  assert.equal(guidestar.accepted, false);
+
+  const media = farmEval(
+    {
+      title: "Our Father's Farm Digital Media",
+      url: "https://www.ourfathersfarm.org/",
+      summary: "Teachings archive.",
+    },
+    "Teachings and trainings archive for Our Father's Farm / Rhonda Calhoun content in Holden Missouri.",
+    "Our Father's Farm",
+  );
+  assert.equal(media.identityAccepted, true);
+  assert.equal(media.accepted, false);
+
+  const agNews = farmEval(
+    {
+      title: "Rain, stalk rot challenge northwest Missouri corn harvest",
+      url: "https://www.brownfieldagnews.com/news/rain-stalk-rot-challenge-northwest-missouri-corn-harvest/",
+      summary: "Ag news on Missouri corn harvest delays.",
+    },
+    "Ag news on Missouri corn harvest delays from rain and stalk rot.",
+  );
+  assert.equal(agNews.accepted, false);
+  assert.equal(agNews.identityAccepted, false);
+
+  const jpusa = farmEval(
+    {
+      title: "BuzzFeed — Jesus People USA and the Farm in Missouri woods",
+      url: "https://www.buzzfeed.com/jessehyde/bringing-down-americas-happiest-christian-cult-842",
+      summary: "JPUSA commune coverage.",
+    },
+    "JPUSA commune coverage mentioning the Farm, a 300-acre retreat in Doniphan, Missouri, and cult/abuse allegations. Jesus People USA.",
+  );
+  assert.equal(jpusa.accepted, false);
+  assert.equal(jpusa.identityAccepted, false);
+
+  const jpii = farmEval(
+    {
+      title: "JPII Catholic Worker Farm news",
+      url: "https://jpiicatholicworkerfarm.com/farm-news",
+      summary: "Urban organic Catholic Worker farm in Kansas City Missouri.",
+    },
+    "Urban organic Catholic Worker farm in Kansas City Missouri; produce donations and worker-scholars. JPII.",
+  );
+  assert.equal(jpii.accepted, false);
+  assert.equal(jpii.identityAccepted, false);
+
+  const wisconsin = farmEval(
+    {
+      title: "Harvest Home Farm — Whitehall Wisconsin",
+      url: "https://harvesthomefarm.org/",
+      summary: "Unrelated Harvest Home Farm ministry in Whitehall, Wisconsin.",
+    },
+    "Unrelated Harvest Home Farm ministry in Whitehall, Wisconsin.",
+  );
+  assert.equal(wisconsin.accepted, false);
+
+  const withoutRelevance = evaluateMention(
+    story({
+      title: "Harvest Home — Our Father's Farm (ministry site)",
+      url: "https://harvesthome.org/",
+      summary: "Ministry site.",
+    }),
+    "Harvest Home",
+    FARM_TERMS,
+    FARM_ANCHORS,
+    true,
+    {
+      pageText: "Danny & Rhonda Calhoun; Our Father's Farm, Holden MO.",
+      negativeTerms: [],
+      requireAnyContexts: FARM_REQUIRE_ANY,
+      relevanceMode: "off",
+    },
+  );
+  assert.equal(withoutRelevance.identityAccepted, true);
+  assert.equal(withoutRelevance.accepted, true, "relevanceMode off leaves existing Mentions behavior unchanged");
+});
+
+test("requireAnyContexts never uses negativeTerms polarity", () => {
+  const kept = evaluateMention(
+    story({ title: "Alex Morgan faces a lawsuit over robotics IP" }),
+    "Alex Morgan",
+    ["Alex Morgan", "Northstar Robotics"],
+    ["robotics"],
+    true,
+    {
+      pageText: "Alex Morgan of Northstar Robotics faces a lawsuit over robotics IP.",
+      negativeTerms: [],
+      requireAnyContexts: ["lawsuit"],
+      relevanceMode: "require-any",
+    },
+  );
+  assert.equal(kept.accepted, true);
+  assert.deepEqual(kept.matchedRequiredContexts, ["lawsuit"]);
+
+  const excluded = evaluateMention(
+    story({ title: "Alex Morgan faces a lawsuit over robotics IP" }),
+    "Alex Morgan",
+    ["Alex Morgan", "Northstar Robotics"],
+    ["robotics"],
+    true,
+    {
+      pageText: "Alex Morgan of Northstar Robotics faces a lawsuit over robotics IP.",
+      negativeTerms: ["lawsuit"],
+    },
+  );
+  assert.equal(excluded.accepted, false);
+  assert.match(excluded.reasons[0], /Excluded context: lawsuit/);
+});

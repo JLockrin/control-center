@@ -77,6 +77,9 @@ const defaults: StoredSettings = {
     websites: [],
     identityAnchors: [],
     negativeTerms: [],
+    requireAnyContexts: [],
+    relevanceMode: "off",
+    llmRelevanceGate: false,
     strictMode: true,
     excludeOwnedSites: true,
   },
@@ -415,6 +418,15 @@ export async function updateSettings(update: SettingsUpdate) {
       "Mention excluded contexts",
       MAX_MENTION_CONTEXT_VALUES,
     );
+    const mentionRequireAnyContexts = cleanBoundedMentionValues(
+      update.mentions.requireAnyContexts ?? [],
+      "Mention required contexts",
+      MAX_MENTION_CONTEXT_VALUES,
+    );
+    const mentionRelevanceMode = update.mentions.relevanceMode === "require-any"
+      ? "require-any" as const
+      : "off" as const;
+    const mentionLlmRelevanceGate = update.mentions.llmRelevanceGate === true;
     const googleClientId = update.newsletters.googleClientId.trim();
     if (googleClientId && !isGoogleOAuthClientId(googleClientId))
       throw new Error(GOOGLE_OAUTH_CLIENT_ID_ERROR);
@@ -441,6 +453,9 @@ export async function updateSettings(update: SettingsUpdate) {
         websites: mentionWebsites,
         identityAnchors: mentionIdentityAnchors,
         negativeTerms: mentionNegativeTerms,
+        requireAnyContexts: mentionRequireAnyContexts,
+        relevanceMode: mentionRelevanceMode,
+        llmRelevanceGate: mentionLlmRelevanceGate,
         strictMode: update.mentions.strictMode !== false,
         excludeOwnedSites: update.mentions.excludeOwnedSites !== false,
       },

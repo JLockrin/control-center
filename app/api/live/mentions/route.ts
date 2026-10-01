@@ -26,6 +26,11 @@ import {
 } from "@/lib/server/mention-page";
 import { researchMentionsWithAi } from "@/lib/server/mention-research";
 import { curateMentionsWithAi } from "@/lib/server/mention-curation";
+import { gateMentionRelevanceWithAi } from "@/lib/server/mention-relevance-gate";
+import {
+  finalizeMentionRelevance,
+  shouldConsultLlmRelevanceGate,
+} from "@/lib/mention-relevance-gate";
 import { aiSupportsWebSearch } from "@/lib/ai-providers";
 import { localMentionPriority, sortFeedStories } from "@/lib/feed-priority";
 import { mentionsCacheScope } from "@/lib/collector-scopes";
@@ -114,6 +119,9 @@ async function collectMentions(
     ...settings.mentions.websites.map((website) => `website:${website}`),
     ...settings.mentions.identityAnchors.map((anchor) => `anchor:${anchor}`),
     ...settings.mentions.negativeTerms.map((term) => `exclude:${term}`),
+    ...settings.mentions.requireAnyContexts.map((term) => `require:${term}`),
+    `relevance:${settings.mentions.relevanceMode}`,
+    `llm-gate:${settings.mentions.llmRelevanceGate}`,
     `exclude-owned:${settings.mentions.excludeOwnedSites}`,
     ...settings.industry.keywords.map((keyword) => `niche:${keyword}`),
   ]) : "";
@@ -136,6 +144,39 @@ async function collectMentions(
 
   const identitySignals = terms;
   const nicheContexts = [...new Set([...settings.mentions.identityAnchors, ...settings.industry.keywords])];
+  const keywordRequired = settings.mentions.relevanceMode === "require-any" &&
+    settings.mentions.requireAnyContexts.length > 0;
+  const mentionEvidenceBase = {
+    nicheContexts,
+    negativeTerms: settings.mentions.negativeTerms,
+    requireAnyContexts: settings.mentions.requireAnyContexts,
+    relevanceMode: settings.mentions.relevanceMode,
+  };
+  const resolveAcceptedMention = async (
+    evaluation: ReturnType<typeof evaluateMention>,
+    candidate: { title: string; summary: string; pageText: string; matchedTerm: string },
+  ) => {
+    let llmDecision = null;
+    let llmConsulted = false;
+    if (shouldConsultLlmRelevanceGate({
+      identityAccepted: evaluation.identityAccepted,
+      matchedRequiredContexts: evaluation.matchedRequiredContexts,
+      llmRelevanceGate: settings.mentions.llmRelevanceGate,
+    }) && configuredAiReady(settings)) {
+      llmConsulted = true;
+      llmDecision = await gateMentionRelevanceWithAi(settings, {
+        ...candidate,
+        requireAnyContexts: settings.mentions.requireAnyContexts,
+      });
+    }
+    return finalizeMentionRelevance({
+      evaluation,
+      llmRelevanceGate: settings.mentions.llmRelevanceGate,
+      keywordRequired,
+      llmDecision,
+      llmConsulted,
+    });
+  };
   const tasks: SearchTask[] = terms.flatMap((primary) => {
     const queryPlans = buildMentionQueryPlans(primary, {
       identitySignals,
@@ -261,11 +302,16 @@ async function collectMentions(
         canonicalUrl: verifiedUrl,
         publisher: page?.source || item.source,
         pageText: page?.pageText || "",
-        nicheContexts,
-        negativeTerms: settings.mentions.negativeTerms,
+        ...mentionEvidenceBase,
       },
     );
-    if (!evaluation.accepted) {
+    const relevance = await resolveAcceptedMention(evaluation, {
+      title: item.title,
+      summary: item.summary,
+      pageText: page?.pageText || "",
+      matchedTerm: task.primary,
+    });
+    if (!relevance.accepted) {
       filteredCounts.rejected += 1;
       continue;
     }
@@ -279,7 +325,7 @@ async function collectMentions(
       kind: "mention",
       matchedTerm: task.primary,
       confidence: evaluation.confidence,
-      matchReasons: evaluation.reasons,
+      matchReasons: relevance.reasons,
       collectionScope: mentionScope,
     };
     byId.set(id, mergeMention(byId.get(id), normalized));
@@ -314,7 +360,11 @@ async function collectMentions(
       discoveredAt: checkedAt,
       kind: "mention",
     };
-    let accepted: { primary: string; evaluation: ReturnType<typeof evaluateMention> } | null = null;
+    let accepted: {
+      primary: string;
+      evaluation: ReturnType<typeof evaluateMention>;
+      reasons: string[];
+    } | null = null;
     for (const primary of terms) {
       const evaluation = evaluateMention(
         item,
@@ -326,12 +376,17 @@ async function collectMentions(
           canonicalUrl: page.url,
           publisher: page.source,
           pageText: page.pageText,
-          nicheContexts,
-          negativeTerms: settings.mentions.negativeTerms,
+          ...mentionEvidenceBase,
         },
       );
-      if (evaluation.accepted) {
-        accepted = { primary, evaluation };
+      const relevance = await resolveAcceptedMention(evaluation, {
+        title: item.title,
+        summary: item.summary,
+        pageText: page.pageText,
+        matchedTerm: primary,
+      });
+      if (relevance.accepted) {
+        accepted = { primary, evaluation, reasons: relevance.reasons };
         break;
       }
     }
@@ -345,7 +400,7 @@ async function collectMentions(
       id,
       matchedTerm: accepted.primary,
       confidence: accepted.evaluation.confidence,
-      matchReasons: ["Found by broad web research", ...accepted.evaluation.reasons],
+      matchReasons: ["Found by broad web research", ...accepted.reasons],
       collectionScope: mentionScope,
     };
     byId.set(id, mergeMention(byId.get(id), normalized));
@@ -386,6 +441,8 @@ async function collectMentions(
           identityAnchors: settings.mentions.identityAnchors,
           nicheContexts,
           negativeTerms: settings.mentions.negativeTerms,
+          requireAnyContexts: settings.mentions.requireAnyContexts,
+          relevanceMode: settings.mentions.relevanceMode,
           strictMode: settings.mentions.strictMode,
           excludeOwnedSites: settings.mentions.excludeOwnedSites,
           websites: settings.mentions.websites,

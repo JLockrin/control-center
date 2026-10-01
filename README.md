@@ -32,7 +32,7 @@ npm run launch -- --port=3001  # use another local port
 The Today page shows the four live areas and links directly to the right Settings section.
 
 1. **Industry:** add any public homepage, RSS/Atom feed, and optional topic phrases.
-2. **Mentions:** add exact names, brands, handles, official domains, distinguishing identity anchors, and known false-positive contexts.
+2. **Mentions:** add exact names, brands, handles, official domains, distinguishing identity anchors, known false-positive exclusions, and optional required contexts for discover-then-filter watches.
 3. **Audience:** add exact public profile URLs or handles for the platforms you use.
 4. **AI curation (optional):** choose OpenAI, Anthropic, Gemini, Grok, or OpenRouter and save that provider's key, or connect a running local model in LM Studio or Ollama. The model selector starts at **Default**; available alternatives load from the selected provider.
 5. **Newsletters (optional):** connect any Gmail account with a read-only OAuth client, choose the Gmail search query, and configure AI curation to extract and rank news.
@@ -62,7 +62,7 @@ Active Industry cards are limited to items published or newly discovered in the 
 
 Mention discovery searches Google News and Bing News across the previous seven days. When a user enables a cloud AI provider with search support, a cached two-hour broad-web pass also searches articles, podcasts, videos, directories, forums, GitHub, Reddit, and supported public social pages. Multi-word names and brands are searched as complete phrases, never as loose individual words.
 
-For predictable laptop-friendly collection, a watchlist can contain up to 12 names, handles, and official websites combined, plus up to 24 identity anchors and 24 negative contexts. Every configured identity is processed; provider failures are reported as partial coverage rather than silently dropping entries.
+For predictable laptop-friendly collection, a watchlist can contain up to 12 names, handles, and official websites combined, plus up to 24 identity anchors, 24 exclusion contexts, and 24 required contexts. Every configured identity is processed; provider failures are reported as partial coverage rather than silently dropping entries.
 
 Strict mode requires identity evidence:
 
@@ -71,9 +71,13 @@ Strict mode requires identity evidence:
 - roles, products, locations, collaborators, and niche topics can serve as anchors;
 - weak namesakes and broad word overlap are rejected as noise;
 - search snippets and AI output never count as proof; the app fetches the direct canonical URL and requires literal page-local identity evidence;
-- configured negative terms hard-reject recurring namesakes and unrelated brand contexts;
+- configured **negative terms exclude** recurring namesakes and unrelated brand contexts;
+- optional **require contexts** (with relevance mode **require-any**) **keep only** pages that also contain at least one of those cues near the match — discover wide, then filter (opposite polarity of negative terms);
+- optional **AI relevance keep/drop** consults the configured model after identity when keywords miss or are empty; keyword hits short-circuit to keep; if AI is unavailable, Mentions falls back to keyword required contexts, or fails closed for LLM-only watches;
 - official domains establish identity but can be excluded from the third-party Mention queue;
 - literal but ambiguous matches stay review-only when strict mode is off; strict mode requires a second identity signal or multiple configured identity anchors.
+
+For a worked negative-press example (Harvest Home / Our Father’s Farm, Holden MO), see [`docs/FARM_MENTIONS_WATCH.md`](docs/FARM_MENTIONS_WATCH.md) and the copy-paste fragment [`docs/farm-mentions-watch.preset.json`](docs/farm-mentions-watch.preset.json). That preset is documentation only — it is not auto-applied to any machine.
 
 Canonical story identities are stored locally. Once a result is archived, later scans do not resurface the same story through a search-provider wrapper or tracking URL.
 

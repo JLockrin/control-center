@@ -196,6 +196,9 @@ try {
     settings.mentions?.websites?.length !== 0 ||
     settings.mentions?.identityAnchors?.length !== 0 ||
     settings.mentions?.negativeTerms?.length !== 0 ||
+    settings.mentions?.requireAnyContexts?.length !== 0 ||
+    settings.mentions?.relevanceMode !== "off" ||
+    settings.mentions?.llmRelevanceGate !== false ||
     settings.mentions?.excludeOwnedSites !== true ||
     settings.audience?.accounts?.length !== 0 ||
     settings.newsletters?.connected !== false ||
