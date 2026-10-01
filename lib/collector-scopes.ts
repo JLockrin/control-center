@@ -26,6 +26,7 @@ export function mentionsCacheScope(settings: FeedSettings) {
     ...settings.mentions.identityAnchors.map((anchor) => `anchor:${anchor}`),
     ...settings.mentions.negativeTerms.map((term) => `exclude:${term}`),
     ...settings.mentions.requireAnyContexts.map((term) => `require:${term}`),
+    ...settings.mentions.requireContextsTerms.map((term) => `require-term:${term}`),
     `relevance:${settings.mentions.relevanceMode}`,
     `llm-gate:${settings.mentions.llmRelevanceGate}`,
     `exclude-owned:${settings.mentions.excludeOwnedSites}`,

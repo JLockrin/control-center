@@ -10,6 +10,7 @@ import {
   isFreshMentionEvidence,
   MENTION_COLLECTION_VERSION,
   mentionIdentity,
+  primaryUsesRequireContexts,
 } from "@/lib/mention-filter";
 import { getDatabase, syncContentItems } from "@/lib/server/database";
 import { googleNewsArticleId, resolveGoogleNewsUrl } from "@/lib/server/google-news";
@@ -120,6 +121,7 @@ async function collectMentions(
     ...settings.mentions.identityAnchors.map((anchor) => `anchor:${anchor}`),
     ...settings.mentions.negativeTerms.map((term) => `exclude:${term}`),
     ...settings.mentions.requireAnyContexts.map((term) => `require:${term}`),
+    ...settings.mentions.requireContextsTerms.map((term) => `require-term:${term}`),
     `relevance:${settings.mentions.relevanceMode}`,
     `llm-gate:${settings.mentions.llmRelevanceGate}`,
     `exclude-owned:${settings.mentions.excludeOwnedSites}`,
@@ -144,24 +146,31 @@ async function collectMentions(
 
   const identitySignals = terms;
   const nicheContexts = [...new Set([...settings.mentions.identityAnchors, ...settings.industry.keywords])];
-  const keywordRequired = settings.mentions.relevanceMode === "require-any" &&
-    settings.mentions.requireAnyContexts.length > 0;
   const mentionEvidenceBase = {
     nicheContexts,
     negativeTerms: settings.mentions.negativeTerms,
     requireAnyContexts: settings.mentions.requireAnyContexts,
+    requireContextsTerms: settings.mentions.requireContextsTerms,
     relevanceMode: settings.mentions.relevanceMode,
   };
   const resolveAcceptedMention = async (
     evaluation: ReturnType<typeof evaluateMention>,
     candidate: { title: string; summary: string; pageText: string; matchedTerm: string },
   ) => {
+    const scoped = primaryUsesRequireContexts(
+      candidate.matchedTerm,
+      settings.mentions.requireContextsTerms,
+    );
+    const keywordRequired = scoped &&
+      settings.mentions.relevanceMode === "require-any" &&
+      settings.mentions.requireAnyContexts.length > 0;
+    const llmRelevanceGate = scoped && settings.mentions.llmRelevanceGate;
     let llmDecision = null;
     let llmConsulted = false;
     if (shouldConsultLlmRelevanceGate({
       identityAccepted: evaluation.identityAccepted,
       matchedRequiredContexts: evaluation.matchedRequiredContexts,
-      llmRelevanceGate: settings.mentions.llmRelevanceGate,
+      llmRelevanceGate,
     }) && configuredAiReady(settings)) {
       llmConsulted = true;
       llmDecision = await gateMentionRelevanceWithAi(settings, {
@@ -171,7 +180,7 @@ async function collectMentions(
     }
     return finalizeMentionRelevance({
       evaluation,
-      llmRelevanceGate: settings.mentions.llmRelevanceGate,
+      llmRelevanceGate,
       keywordRequired,
       llmDecision,
       llmConsulted,
@@ -442,6 +451,7 @@ async function collectMentions(
           nicheContexts,
           negativeTerms: settings.mentions.negativeTerms,
           requireAnyContexts: settings.mentions.requireAnyContexts,
+          requireContextsTerms: settings.mentions.requireContextsTerms,
           relevanceMode: settings.mentions.relevanceMode,
           strictMode: settings.mentions.strictMode,
           excludeOwnedSites: settings.mentions.excludeOwnedSites,

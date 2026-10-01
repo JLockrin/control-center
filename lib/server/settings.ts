@@ -78,6 +78,7 @@ const defaults: StoredSettings = {
     identityAnchors: [],
     negativeTerms: [],
     requireAnyContexts: [],
+    requireContextsTerms: [],
     relevanceMode: "off",
     llmRelevanceGate: false,
     strictMode: true,
@@ -423,6 +424,11 @@ export async function updateSettings(update: SettingsUpdate) {
       "Mention required contexts",
       MAX_MENTION_CONTEXT_VALUES,
     );
+    const mentionRequireContextsTerms = cleanBoundedMentionValues(
+      update.mentions.requireContextsTerms ?? [],
+      "Mention require-context terms",
+      MAX_MENTION_IDENTITIES,
+    );
     const mentionRelevanceMode = update.mentions.relevanceMode === "require-any"
       ? "require-any" as const
       : "off" as const;
@@ -454,6 +460,7 @@ export async function updateSettings(update: SettingsUpdate) {
         identityAnchors: mentionIdentityAnchors,
         negativeTerms: mentionNegativeTerms,
         requireAnyContexts: mentionRequireAnyContexts,
+        requireContextsTerms: mentionRequireContextsTerms,
         relevanceMode: mentionRelevanceMode,
         llmRelevanceGate: mentionLlmRelevanceGate,
         strictMode: update.mentions.strictMode !== false,

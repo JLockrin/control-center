@@ -10,6 +10,7 @@ const settings: Parameters<typeof industryCacheScope>[0] = {
     identityAnchors: ["Gardening"],
     negativeTerms: [],
     requireAnyContexts: [],
+    requireContextsTerms: [],
     relevanceMode: "off",
     llmRelevanceGate: false,
     strictMode: true,
@@ -38,6 +39,7 @@ test("Mentions require-context and LLM gate settings invalidate the saved Mentio
     mentions: {
       ...settings.mentions,
       requireAnyContexts: ["allegation"],
+      requireContextsTerms: ["Example"],
       relevanceMode: "require-any" as const,
     },
   };

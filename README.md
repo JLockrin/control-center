@@ -73,7 +73,8 @@ Strict mode requires identity evidence:
 - search snippets and AI output never count as proof; the app fetches the direct canonical URL and requires literal page-local identity evidence;
 - configured **negative terms exclude** recurring namesakes and unrelated brand contexts;
 - optional **require contexts** (with relevance mode **require-any**) **keep only** pages that also contain at least one of those cues near the match — discover wide, then filter (opposite polarity of negative terms);
-- optional **AI relevance keep/drop** consults the configured model after identity when keywords miss or are empty; keyword hits short-circuit to keep; if AI is unavailable, Mentions falls back to keyword required contexts, or fails closed for LLM-only watches;
+- scope that filter with **apply require-contexts to these names** (`requireContextsTerms`); an empty allowlist leaves every Mentions primary unchanged so brand watches stay safe; allowlisted primaries skip `negativeTerms` exclusions;
+- optional **AI relevance keep/drop** consults the configured model after identity for allowlisted names when keywords miss or are empty; keyword hits short-circuit to keep; if AI is unavailable, Mentions falls back to keyword required contexts, or fails closed for LLM-only watches;
 - official domains establish identity but can be excluded from the third-party Mention queue;
 - literal but ambiguous matches stay review-only when strict mode is off; strict mode requires a second identity signal or multiple configured identity anchors.
 

@@ -28,6 +28,7 @@ function settingsFor(provider: AiKeyProvider, model = ""): StoredSettings {
       identityAnchors: [],
       negativeTerms: [],
       requireAnyContexts: [],
+      requireContextsTerms: [],
       relevanceMode: "off",
       llmRelevanceGate: false,
       strictMode: true,

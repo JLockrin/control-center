@@ -62,6 +62,12 @@ export type PublicSettings = {
     negativeTerms: string[];
     /** Keep only when at least one of these contexts appears near the match (opposite of negativeTerms). */
     requireAnyContexts: string[];
+    /**
+     * Mentions primary terms that use requireAnyContexts / llmRelevanceGate.
+     * Empty = off for every primary (safe default; brand watches stay unchanged).
+     * For allowlisted primaries, negativeTerms exclusions are skipped.
+     */
+    requireContextsTerms: string[];
     /** "off" skips requireAnyContexts; "require-any" enforces them when the list is non-empty. */
     relevanceMode: "off" | "require-any";
     /** Optional AI keep/drop after identity; see Mentions docs for fallback semantics. */
@@ -101,7 +107,12 @@ export type SettingsUpdate = Omit<
     Partial<Pick<PublicSettings["industry"], "description" | "excludedTerms" | "dailyLimit">>;
   mentions: Omit<
     PublicSettings["mentions"],
-    "negativeTerms" | "excludeOwnedSites" | "requireAnyContexts" | "relevanceMode" | "llmRelevanceGate"
+    | "negativeTerms"
+    | "excludeOwnedSites"
+    | "requireAnyContexts"
+    | "requireContextsTerms"
+    | "relevanceMode"
+    | "llmRelevanceGate"
   > &
     Partial<
       Pick<
@@ -109,6 +120,7 @@ export type SettingsUpdate = Omit<
         | "negativeTerms"
         | "excludeOwnedSites"
         | "requireAnyContexts"
+        | "requireContextsTerms"
         | "relevanceMode"
         | "llmRelevanceGate"
       >

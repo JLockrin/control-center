@@ -42,6 +42,7 @@ function researchKey(settings: StoredSettings, now: number) {
     anchors: settings.mentions.identityAnchors,
     negatives: settings.mentions.negativeTerms,
     requireAny: settings.mentions.requireAnyContexts,
+    requireTerms: settings.mentions.requireContextsTerms,
     relevanceMode: settings.mentions.relevanceMode,
     llmGate: settings.mentions.llmRelevanceGate,
     niche: settings.industry.description,

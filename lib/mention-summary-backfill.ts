@@ -81,6 +81,7 @@ export function revalidateMentionSummaryBackfill(
     nicheContexts: string[];
     negativeTerms: string[];
     requireAnyContexts?: string[];
+    requireContextsTerms?: string[];
     relevanceMode?: MentionRelevanceMode;
     strictMode: boolean;
     excludeOwnedSites: boolean;
@@ -132,6 +133,7 @@ export function revalidateMentionSummaryBackfill(
         nicheContexts: options.nicheContexts,
         negativeTerms: options.negativeTerms,
         requireAnyContexts: options.requireAnyContexts,
+        requireContextsTerms: options.requireContextsTerms,
         relevanceMode: options.relevanceMode,
       },
     );

@@ -1,16 +1,16 @@
 {
-  "_comment": "Harvest Home / Our Father's Farm (Holden MO, Calhouns) — Mentions discover-then-filter preset. Copy the `mentions` fragment into Settings → Mentions (or merge into your local settings.json). Do NOT put cult/abuse/scandal into negativeTerms. Not JPUSA Doniphan / Grand Valley / Wisconsin Harvest Home Farm.",
-  "mentions": {
-    "terms": [
+  "_comment": "Merge Farm discover-then-filter ALONGSIDE existing brand Mentions. Append terms/websites/identityAnchors; set requireContextsTerms to Farm primaries only; keep your brand negativeTerms (e.g. obituary/arrest/lawsuit) unchanged — they still apply to brand primaries, and are skipped for allowlisted Farm primaries. Do NOT put cult/abuse/scandal into negativeTerms. Not JPUSA Doniphan.",
+  "merge": {
+    "appendToMentionsTerms": [
       "Our Father's Farm",
       "Harvest Home"
     ],
-    "websites": [
+    "appendToMentionsWebsites": [
       "thefarmprojectmo.org",
       "harvesthome.org",
       "ourfathersfarm.org"
     ],
-    "identityAnchors": [
+    "appendToMentionsIdentityAnchors": [
       "Holden",
       "Missouri",
       "Calhoun",
@@ -18,7 +18,63 @@
       "Our Father's Farm",
       "Harvest Home, Inc."
     ],
-    "negativeTerms": [],
+    "set": {
+      "requireAnyContexts": [
+        "cult",
+        "abuse",
+        "scandal",
+        "allegation",
+        "whistleblower",
+        "investigation",
+        "ex-member",
+        "BITE",
+        "lawsuit",
+        "sheriff",
+        "survivor",
+        "fear"
+      ],
+      "requireContextsTerms": [
+        "Our Father's Farm",
+        "Harvest Home"
+      ],
+      "relevanceMode": "require-any",
+      "llmRelevanceGate": true
+    },
+    "doNotChange": [
+      "negativeTerms",
+      "strictMode",
+      "excludeOwnedSites",
+      "existing brand terms/websites/anchors"
+    ]
+  },
+  "exampleMergedMentionsFragment": {
+    "terms": [
+      "Joel Loughrin",
+      "Strategrow",
+      "PWP",
+      "Our Father's Farm",
+      "Harvest Home"
+    ],
+    "websites": [
+      "strategrow.example",
+      "thefarmprojectmo.org",
+      "harvesthome.org",
+      "ourfathersfarm.org"
+    ],
+    "identityAnchors": [
+      "existing brand anchors…",
+      "Holden",
+      "Missouri",
+      "Calhoun",
+      "thefarmprojectmo",
+      "Our Father's Farm",
+      "Harvest Home, Inc."
+    ],
+    "negativeTerms": [
+      "obituary",
+      "arrest",
+      "lawsuit"
+    ],
     "requireAnyContexts": [
       "cult",
       "abuse",
@@ -32,6 +88,10 @@
       "sheriff",
       "survivor",
       "fear"
+    ],
+    "requireContextsTerms": [
+      "Our Father's Farm",
+      "Harvest Home"
     ],
     "relevanceMode": "require-any",
     "llmRelevanceGate": true,

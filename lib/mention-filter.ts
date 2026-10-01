@@ -31,6 +31,11 @@ export type MentionEvidence = {
   negativeTerms?: string[];
   /** Opposite of negativeTerms: KEEP only when at least one appears near the match. */
   requireAnyContexts?: string[];
+  /**
+   * Primaries that use discover-then-filter. Empty means the gate is off for
+   * every primary (existing brand Mentions stay unchanged).
+   */
+  requireContextsTerms?: string[];
   relevanceMode?: MentionRelevanceMode;
 };
 
@@ -414,6 +419,23 @@ export function matchedRequiredContextsNearMention(
   return (requireAnyContexts ?? []).filter((term) => containsMentionSignal(contextText, term));
 }
 
+/**
+ * Discover-then-filter applies only to allowlisted Mentions primaries.
+ * An empty allowlist is intentionally off for all primaries so existing brand
+ * watches are unchanged when requireAnyContexts is configured for a subset.
+ */
+export function primaryUsesRequireContexts(
+  primary: string,
+  requireContextsTerms: string[] | undefined,
+) {
+  const allowlist = (requireContextsTerms ?? [])
+    .map((term) => normalizeSignal(term))
+    .filter(Boolean);
+  if (!allowlist.length) return false;
+  const key = normalizeSignal(primary);
+  return Boolean(key) && allowlist.includes(key);
+}
+
 export function evaluateMention(
   item: LiveStory,
   primary: string,
@@ -436,9 +458,14 @@ export function evaluateMention(
   const literalHandleEvidence = containsExplicitHandle(directText, primary) ||
     containsObservedHandle(directText, primary);
   const negativeContextText = `${feedText} ${pageIdentityContext} ${publisherText}`;
-  const matchedNegative = (evidence.negativeTerms ?? []).find((term) => containsMentionSignal(negativeContextText, term));
-  if (matchedNegative) {
-    return rejectedMention([`Excluded context: ${matchedNegative}`]);
+  const scopedRequireContexts = primaryUsesRequireContexts(primary, evidence.requireContextsTerms);
+  // Allowlisted discover-then-filter primaries skip global negativeTerms so
+  // lawsuit/arrest/allegation language can KEEP for those watches only.
+  if (!scopedRequireContexts) {
+    const matchedNegative = (evidence.negativeTerms ?? []).find((term) => containsMentionSignal(negativeContextText, term));
+    if (matchedNegative) {
+      return rejectedMention([`Excluded context: ${matchedNegative}`]);
+    }
   }
   if (!primaryDirect) {
     return rejectedMention(["Rejected: the result contained no literal identity evidence."]);
@@ -490,12 +517,13 @@ export function evaluateMention(
     };
   }
 
-  const matchedRequiredContexts = matchedRequiredContextsNearMention(
-    negativeContextText,
-    evidence.requireAnyContexts,
-  );
+  const matchedRequiredContexts = scopedRequireContexts
+    ? matchedRequiredContextsNearMention(negativeContextText, evidence.requireAnyContexts)
+    : [];
   const relevanceMode = evidence.relevanceMode ?? "off";
-  const requireContexts = relevanceMode === "require-any" && (evidence.requireAnyContexts?.length ?? 0) > 0;
+  const requireContexts = scopedRequireContexts &&
+    relevanceMode === "require-any" &&
+    (evidence.requireAnyContexts?.length ?? 0) > 0;
   if (requireContexts && !matchedRequiredContexts.length) {
     return {
       accepted: false,

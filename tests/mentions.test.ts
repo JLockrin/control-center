@@ -529,8 +529,9 @@ const FARM_REQUIRE_ANY = [
   "ex-member", "BITE", "lawsuit", "sheriff", "survivor", "fear",
 ];
 const FARM_RELEVANCE = {
-  negativeTerms: [] as string[],
+  negativeTerms: ["obituary", "arrest", "lawsuit"] as string[],
   requireAnyContexts: FARM_REQUIRE_ANY,
+  requireContextsTerms: FARM_TERMS,
   relevanceMode: "require-any" as const,
 };
 
@@ -685,6 +686,7 @@ test("Farm discover-then-filter DROPs promo, ag noise, and wrong-entity collisio
       pageText: "Danny & Rhonda Calhoun; Our Father's Farm, Holden MO.",
       negativeTerms: [],
       requireAnyContexts: FARM_REQUIRE_ANY,
+      requireContextsTerms: FARM_TERMS,
       relevanceMode: "off",
     },
   );
@@ -701,8 +703,9 @@ test("requireAnyContexts never uses negativeTerms polarity", () => {
     true,
     {
       pageText: "Alex Morgan of Northstar Robotics faces a lawsuit over robotics IP.",
-      negativeTerms: [],
+      negativeTerms: ["lawsuit"],
       requireAnyContexts: ["lawsuit"],
+      requireContextsTerms: ["Alex Morgan"],
       relevanceMode: "require-any",
     },
   );
@@ -722,4 +725,84 @@ test("requireAnyContexts never uses negativeTerms polarity", () => {
   );
   assert.equal(excluded.accepted, false);
   assert.match(excluded.reasons[0], /Excluded context: lawsuit/);
+});
+
+test("requireContextsTerms scopes discover-then-filter so brand primaries stay unchanged", () => {
+  const mixedEvidence = {
+    negativeTerms: ["obituary", "arrest", "lawsuit"],
+    requireAnyContexts: FARM_REQUIRE_ANY,
+    requireContextsTerms: FARM_TERMS,
+    relevanceMode: "require-any" as const,
+  };
+
+  const brandHit = evaluateMention(
+    story({
+      title: "Strategrow announces a new client workshop",
+      summary: "Joel Loughrin of Strategrow hosts a planning session.",
+    }),
+    "Strategrow",
+    ["Joel Loughrin", "Strategrow", "PWP"],
+    ["planning", "workshop"],
+    true,
+    {
+      pageText: "Joel Loughrin of Strategrow hosts a planning workshop for local operators.",
+      ...mixedEvidence,
+    },
+  );
+  assert.equal(brandHit.accepted, true);
+  assert.equal(brandHit.identityAccepted, true);
+  assert.deepEqual(brandHit.matchedRequiredContexts, []);
+
+  const brandLawsuitExcluded = evaluateMention(
+    story({
+      title: "Joel Loughrin named in a civil lawsuit",
+      summary: "Court filing mentions Joel Loughrin.",
+    }),
+    "Joel Loughrin",
+    ["Joel Loughrin", "Strategrow", "PWP"],
+    ["Strategrow"],
+    true,
+    {
+      pageText: "Joel Loughrin of Strategrow was named in a civil lawsuit filing.",
+      ...mixedEvidence,
+    },
+  );
+  assert.equal(brandLawsuitExcluded.accepted, false);
+  assert.match(brandLawsuitExcluded.reasons[0], /Excluded context: lawsuit/);
+
+  const farmLawsuitKept = farmEval(
+    {
+      title: "Former resident files lawsuit naming Harvest Home",
+      url: "https://news.example/harvest-home-lawsuit",
+      summary: "Civil filing in Missouri.",
+    },
+    "A civil lawsuit in Missouri names Harvest Home / Our Father's Farm in Holden and cites allegation of abuse. Calhoun",
+  );
+  assert.equal(farmLawsuitKept.accepted, true);
+  assert.ok(farmLawsuitKept.matchedRequiredContexts.some((term) => ["lawsuit", "allegation", "abuse"].includes(term)));
+
+  const emptyAllowlistIgnoresRequireContexts = evaluateMention(
+    story({
+      title: "Harvest Home — Our Father's Farm (ministry site)",
+      url: "https://harvesthome.org/",
+      summary: "Ministry promo.",
+    }),
+    "Harvest Home",
+    FARM_TERMS,
+    FARM_ANCHORS,
+    true,
+    {
+      pageText: "Not-for-profit founded by Danny & Rhonda Calhoun at Our Father's Farm, Holden MO.",
+      negativeTerms: [],
+      requireAnyContexts: FARM_REQUIRE_ANY,
+      requireContextsTerms: [],
+      relevanceMode: "require-any",
+    },
+  );
+  assert.equal(
+    emptyAllowlistIgnoresRequireContexts.accepted,
+    true,
+    "empty requireContextsTerms leaves require-any off for every primary",
+  );
+  assert.deepEqual(emptyAllowlistIgnoresRequireContexts.matchedRequiredContexts, []);
 });
