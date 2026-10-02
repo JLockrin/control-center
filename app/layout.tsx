@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Control Center",
-  description: "A self-hosted dashboard for signals, mentions, newsletters, audience, reminders, and tasks.",
+  description: "A self-hosted dashboard for signals, mentions, newsletters, audience, reminders, tasks, and Vigil security.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
