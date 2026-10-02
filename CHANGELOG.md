@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Vigil Security tab: read-only ranked issues from `%LOCALAPPDATA%\\Control Center\\vigil\\issues.json` (schema v1.0). Severity colors and status labels come from Vigil data; sort is severity → optional `rank` → `updatedAt`. No Joel re-rank UI.
 - Mentions discover-then-filter: `requireAnyContexts` + `relevanceMode` keep only identity-matched pages that also contain at least one required cue near the match (opposite of `negativeTerms` exclusions).
 - Scope that gate with `requireContextsTerms` (empty = off for all primaries). Allowlisted primaries skip global `negativeTerms` so lawsuit/arrest language can KEEP while brand watches keep their exclusions.
 - Optional Mentions `llmRelevanceGate` keep/drop after identity for allowlisted primaries only; keyword hits short-circuit, AI failures fall back to keyword required contexts or fail closed for LLM-only watches.

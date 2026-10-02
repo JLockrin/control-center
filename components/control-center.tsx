@@ -39,6 +39,7 @@ import {
   RefreshCw,
   Search,
   Settings2,
+  Shield,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -60,6 +61,7 @@ import type {
   SettingsUpdate,
   TaskItem,
   WorkspaceState,
+  VigilSecurityFeedResponse,
   WorkspaceStateResponse,
 } from "@/lib/types";
 import {
@@ -75,6 +77,7 @@ import { SettingsInput } from "@/components/settings-input";
 import { AiProviderSettings } from "@/components/ai-provider-settings";
 import { DailySnapshot } from "@/components/daily-snapshot";
 import { AudienceInsights } from "@/components/audience-insights";
+import { SecurityDashboard } from "@/components/security-dashboard";
 import type { AudienceHistorySeries } from "@/lib/audience-charts";
 import { AI_PROVIDER_LABELS, DEFAULT_LOCAL_AI_URLS, isAiReady } from "@/lib/ai-providers";
 import { sortFeedStories, selectNewsletterTopics, newsletterSourceOptions } from "@/lib/feed-priority";
@@ -93,6 +96,7 @@ type Tab =
   | "audience"
   | "newsletters"
   | "tasks"
+  | "security"
   | "settings";
 type SettingsSection =
   | "general"
@@ -153,6 +157,7 @@ const nav: { id: Tab; label: string; icon: typeof Activity }[] = [
   { id: "audience", label: "Audience", icon: Users },
   { id: "newsletters", label: "Newsletters", icon: Newspaper },
   { id: "tasks", label: "Tasks", icon: ListTodo },
+  { id: "security", label: "Security", icon: Shield },
 ];
 
 function classNames(...values: Array<string | false | null | undefined>) {
@@ -3446,6 +3451,23 @@ function SettingsView({
   );
 }
 
+
+function SecurityTab() {
+  const { data, loading, error, refresh } = useLiveData<VigilSecurityFeedResponse>(
+    "/api/live/security",
+    60 * 1000,
+    "/api/live/security",
+  );
+  return (
+    <SecurityDashboard
+      data={data}
+      loading={loading}
+      error={error}
+      refresh={refresh}
+    />
+  );
+}
+
 export function ControlCenter() {
   const [activeTab, setActiveTab] = useState<Tab>("today");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -3842,7 +3864,8 @@ export function ControlCenter() {
         )}{" "}
         {activeTab === "tasks" && (
           <TasksView tasks={tasks} setTasks={setTasks} />
-        )}{" "}
+        )}
+        {activeTab === "security" && <SecurityTab />}
         {activeTab === "settings" && (
           <SettingsView
             settings={settings}

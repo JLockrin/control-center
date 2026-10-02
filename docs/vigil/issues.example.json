@@ -1,0 +1,182 @@
+{
+  "schemaVersion": "1.0",
+  "source": "vigil",
+  "updatedAt": "2026-10-02T13:15:00-04:00",
+  "hosts": [
+    {
+      "id": "precision3591",
+      "displayName": "Precision3591",
+      "machineId": "24c3b836-1ff9-4700-b9b9-ff818bdc5f8c",
+      "os": "Windows 11 Pro 25H2"
+    }
+  ],
+  "severityColors": {
+    "critical": "#DC2626",
+    "high": "#EA580C",
+    "medium": "#CA8A04",
+    "low": "#2563EB",
+    "info": "#64748B"
+  },
+  "statusLabels": {
+    "open": "Open",
+    "in_progress": "In progress",
+    "remediated": "Remediated",
+    "accepted_risk": "Accepted risk",
+    "wont_fix": "Won't fix"
+  },
+  "issues": [
+    {
+      "id": "sec-p3591-bl-escrow",
+      "hostId": "precision3591",
+      "severity": "high",
+      "title": "Confirm BitLocker recovery-key escrow (MSA / Entra)",
+      "status": "open",
+      "notes": "C: encryption verified On (XTS-AES 128, TPM+RecoveryPassword). Escrow to MSA/Entra/AD not locally proven. Do not paste keys into chat.",
+      "flowProjectId": 47,
+      "flowItemId": 47,
+      "reportPaths": [
+        "/home/box/security-reports/bitlocker-verify-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T12:00:00-04:00",
+      "rank": 2
+    },
+    {
+      "id": "sec-p3591-least-priv",
+      "hostId": "precision3591",
+      "severity": "high",
+      "title": "Move daily account JoelJ off local Administrators",
+      "status": "open",
+      "notes": "PRECISION3591\\JoelJ is local admin (MSA). Daily admin amplifies malware impact.",
+      "flowProjectId": 47,
+      "flowItemId": 48,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00",
+      "rank": 1
+    },
+    {
+      "id": "sec-p3591-defender",
+      "hostId": "precision3591",
+      "severity": "medium",
+      "title": "Full Defender scan + Controlled Folder Access (+ Network Protection)",
+      "status": "open",
+      "notes": "RTP and tamper on; full scan never completed; CFA off; Network Protection off (baseline 2026-09-27).",
+      "flowProjectId": 47,
+      "flowItemId": 49,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00"
+    },
+    {
+      "id": "sec-p3591-lms-amt",
+      "hostId": "precision3591",
+      "severity": "medium",
+      "title": "Review / lock down Intel LMS\u2013AMT listeners",
+      "status": "open",
+      "notes": "LMS listening on TCP 623/16992/16993 (and related) on all interfaces.",
+      "flowProjectId": 47,
+      "flowItemId": 50,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00"
+    },
+    {
+      "id": "sec-p3591-reboot",
+      "hostId": "precision3591",
+      "severity": "low",
+      "title": "Reboot to clear PendingFileRenameOperations",
+      "status": "open",
+      "notes": "Soft pending-reboot signal at baseline; no hard WU reboot keys.",
+      "flowProjectId": 47,
+      "flowItemId": 51,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00"
+    },
+    {
+      "id": "sec-p3591-hermes-startup",
+      "hostId": "precision3591",
+      "severity": "low",
+      "title": "Verify Hermes_Gateway.vbs Startup entry",
+      "status": "open",
+      "notes": "User Startup VBS \u2192 Hermes gateway; expected if Hermes installed intentionally.",
+      "flowProjectId": 47,
+      "flowItemId": 52,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00"
+    },
+    {
+      "id": "sec-p3591-backup",
+      "hostId": "precision3591",
+      "severity": "low",
+      "title": "Add true backup beyond OneDrive sync",
+      "status": "open",
+      "notes": "OneDrive KFM active; no separate backup verified.",
+      "flowProjectId": 47,
+      "flowItemId": 53,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00"
+    },
+    {
+      "id": "sec-p3591-hygiene",
+      "hostId": "precision3591",
+      "severity": "low",
+      "title": "Optional hygiene: AdobeBridge / node listeners",
+      "status": "open",
+      "notes": "Empty AdobeBridge Run value; node on 0.0.0.0:4521-4523 at baseline.",
+      "flowProjectId": 47,
+      "flowItemId": 54,
+      "reportPaths": [
+        "/home/box/security-reports/security-baseline-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T08:00:00-04:00"
+    },
+    {
+      "id": "sec-p3591-bl-encryption",
+      "hostId": "precision3591",
+      "severity": "high",
+      "title": "BitLocker OS-volume encryption status",
+      "status": "remediated",
+      "notes": "Elevated verify 2026-09-27: C: Protection On, 100%, XTS-AES 128 (used-space-only), TPM + RecoveryPassword. Escrow tracked separately.",
+      "flowProjectId": 47,
+      "flowItemId": null,
+      "reportPaths": [
+        "/home/box/security-reports/bitlocker-verify-Precision3591-2026-09-27.md"
+      ],
+      "discoveredAt": "2026-09-27T08:00:00-04:00",
+      "updatedAt": "2026-09-27T12:00:00-04:00",
+      "rank": 3
+    },
+    {
+      "id": "sec-p3591-cua-driver",
+      "hostId": "precision3591",
+      "severity": "info",
+      "title": "Cua AI cua-driver review",
+      "status": "accepted_risk",
+      "notes": "SAFE TO KEEP (2026-10-01). Authenticode Valid (Cua AI, Inc.); v0.28.2; task cua-driver-serve Highest by design. CVE-2026-86121 is computer-server only.",
+      "flowProjectId": null,
+      "flowItemId": null,
+      "reportPaths": [
+        "/home/box/security-reports/cua-driver-review-Precision3591-2026-10-01.md"
+      ],
+      "discoveredAt": "2026-10-01T10:00:00-04:00",
+      "updatedAt": "2026-10-01T10:30:00-04:00"
+    }
+  ]
+}

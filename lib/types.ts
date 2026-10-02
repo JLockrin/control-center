@@ -342,6 +342,62 @@ export type DailyBriefResponse = {
   }>;
 };
 
+
+export type VigilSecuritySeverity = "critical" | "high" | "medium" | "low" | "info";
+export type VigilSecurityStatus =
+  | "open"
+  | "in_progress"
+  | "remediated"
+  | "accepted_risk"
+  | "wont_fix";
+
+export type VigilSecurityHost = {
+  id: string;
+  displayName: string;
+  machineId?: string;
+  os?: string;
+};
+
+export type VigilSecurityIssue = {
+  id: string;
+  hostId: string;
+  severity: VigilSecuritySeverity;
+  title: string;
+  status: VigilSecurityStatus;
+  notes: string;
+  flowProjectId: string | number | null;
+  flowItemId: string | number | null;
+  reportPaths: string[];
+  discoveredAt: string;
+  updatedAt: string;
+  /** Optional Vigil-owned priority within the same severity. Lower sorts first. */
+  rank?: number;
+};
+
+export type VigilSecurityDashboard = {
+  schemaVersion: string;
+  source: string;
+  updatedAt: string;
+  hosts: VigilSecurityHost[];
+  severityColors: Partial<Record<VigilSecuritySeverity, string>>;
+  statusLabels: Partial<Record<VigilSecurityStatus, string>>;
+  issues: VigilSecurityIssue[];
+};
+
+export type VigilSecurityFeedResponse = {
+  configured: boolean;
+  checkedAt: string;
+  path: string;
+  error?: string;
+  dashboard: VigilSecurityDashboard | null;
+  summary: {
+    total: number;
+    openCount: number;
+    remediatedCount: number;
+    counts: Record<VigilSecuritySeverity, number>;
+  };
+};
+
 export type BriefCategory = "industry" | "mentions" | "newsletters";
 export type DailyBriefSnapshotSection = {
   category: BriefCategory;

@@ -58,6 +58,10 @@ A blocked homepage does not stop feed or sitemap discovery. Raw discoveries are 
 
 Active Industry cards are limited to items published or newly discovered in the last 24 hours; older surfaced items remain under **History**. **Archived** contains only items a user explicitly archived. Undated feed entries establish a baseline instead of being presented as fresh news. Topic phrases add broader Google News discovery, while watched-site updates remain prioritized independently. A selected AI provider can rerank the bounded candidate set; failures automatically fall back to the local importance model.
 
+## Vigil security
+
+Open the **Security** tab for Vigil-ranked host findings. Control Center only renders `%LOCALAPPDATA%\Control Center\vigil\issues.json` (see [docs/VIGIL_SECURITY.md](docs/VIGIL_SECURITY.md)). Severity colors, remediation status, and sort order are owned by Vigil — updating issues is a data change, not a code change.
+
 ## Mentions
 
 Mention discovery searches Google News and Bing News across the previous seven days. When a user enables a cloud AI provider with search support, a cached two-hour broad-web pass also searches articles, podcasts, videos, directories, forums, GitHub, Reddit, and supported public social pages. Multi-word names and brands are searched as complete phrases, never as loose individual words.
