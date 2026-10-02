@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   CircleAlert,
+  FileText,
+  Lock,
+  Monitor,
   RefreshCw,
   Shield,
-  ShieldCheck,
 } from "lucide-react";
 import type {
   VigilSecurityFeedResponse,
@@ -20,6 +22,22 @@ type Props = {
   loading: boolean;
   error: string;
   refresh: () => void;
+};
+
+const VIGIL_STATUS_ORDER: VigilSecurityStatus[] = [
+  "open",
+  "in_progress",
+  "remediated",
+  "accepted_risk",
+  "wont_fix",
+];
+
+const SEVERITY_DISPLAY: Record<VigilSecuritySeverity, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+  info: "Info",
 };
 
 function classNames(...values: Array<string | false | null | undefined>) {
@@ -37,12 +55,11 @@ function formatWhen(value: string) {
   }).format(date);
 }
 
-function hostLabel(
+function hostForIssue(
   data: VigilSecurityFeedResponse | null,
   hostId: string,
 ) {
-  const host = data?.dashboard?.hosts.find((entry) => entry.id === hostId);
-  return host?.displayName || hostId;
+  return data?.dashboard?.hosts.find((entry) => entry.id === hostId) ?? null;
 }
 
 function statusLabel(
@@ -59,17 +76,65 @@ function severityColor(
   return data?.dashboard?.severityColors[severity] || "";
 }
 
-export function SecurityDashboard({ data, loading, error, refresh }: Props) {
-  const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
+function countByStatus(issues: VigilSecurityIssue[]) {
+  const counts: Record<VigilSecurityStatus, number> = {
+    open: 0,
+    in_progress: 0,
+    remediated: 0,
+    accepted_risk: 0,
+    wont_fix: 0,
+  };
+  for (const issue of issues) counts[issue.status] += 1;
+  return counts;
+}
 
-  const issues = useMemo(() => {
-    const list = data?.dashboard?.issues || [];
-    if (statusFilter === "all") return list;
-    return list.filter(
-      (issue) =>
-        issue.status === "open" || issue.status === "in_progress",
-    );
-  }, [data, statusFilter]);
+function severityDonutBackground(
+  data: VigilSecurityFeedResponse,
+  counts: Record<VigilSecuritySeverity, number>,
+  total: number,
+) {
+  if (!total) return "conic-gradient(var(--line) 0deg 360deg)";
+  const stops: string[] = [];
+  let acc = 0;
+  for (const severity of VIGIL_SEVERITY_ORDER) {
+    const count = counts[severity] || 0;
+    if (!count) continue;
+    const color = severityColor(data, severity) || "var(--line-dark)";
+    const start = (acc / total) * 100;
+    acc += count;
+    const end = (acc / total) * 100;
+    stops.push(`${color} ${start}% ${end}%`);
+  }
+  if (!stops.length) return "conic-gradient(var(--line) 0deg 360deg)";
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+export function SecurityDashboard({ data, loading, error, refresh }: Props) {
+  const issues = data?.dashboard?.issues ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const statusCounts = useMemo(
+    () => countByStatus(issues),
+    [issues],
+  );
+
+  const selectedIssue = useMemo(() => {
+    if (!issues.length) return null;
+    if (selectedId) {
+      const match = issues.find((issue) => issue.id === selectedId);
+      if (match) return match;
+    }
+    return issues[0];
+  }, [issues, selectedId]);
+
+  useEffect(() => {
+    if (!issues.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (selectedId && issues.some((issue) => issue.id === selectedId)) return;
+    setSelectedId(issues[0].id);
+  }, [issues, selectedId]);
 
   if (loading && !data) {
     return (
@@ -130,6 +195,9 @@ export function SecurityDashboard({ data, loading, error, refresh }: Props) {
 
   const summary = data.summary;
   const dashboard = data.dashboard;
+  const donutStyle = {
+    background: severityDonutBackground(data, summary.counts, summary.total),
+  } as CSSProperties;
 
   return (
     <div className="view security-view">
@@ -148,119 +216,191 @@ export function SecurityDashboard({ data, loading, error, refresh }: Props) {
         </button>
       </div>
 
-      <section className="security-summary reveal delay-1">
-        {VIGIL_SEVERITY_ORDER.map((severity) => {
-          const color = severityColor(data, severity);
-          const count = summary.counts[severity] || 0;
-          return (
-            <div
-              key={severity}
-              className="security-summary-card"
-              style={
-                color
-                  ? {
-                      borderColor: color,
-                      boxShadow: `inset 3px 0 0 ${color}`,
-                    }
-                  : undefined
-              }
-            >
-              <span
-                className="security-chip"
-                style={
-                  color
-                    ? { background: color, color: "#fff", borderColor: color }
-                    : undefined
-                }
-              >
-                {severity}
-              </span>
-              <b>{count}</b>
+      <section className="panel security-overview reveal delay-1">
+        <div className="security-overview-top">
+          <div
+            className="security-donut"
+            style={donutStyle}
+            role="img"
+            aria-label={`Issue composition: ${summary.total} total`}
+          >
+            <div className="security-donut-center">
+              <b>{summary.total}</b>
+              <span>issues</span>
             </div>
-          );
-        })}
-        <div className="security-summary-card security-summary-meta">
-          <ShieldCheck size={18} />
-          <div>
-            <b>{summary.openCount} open</b>
-            <small>
-              {summary.remediatedCount} remediated · updated{" "}
-              {formatWhen(dashboard.updatedAt || data.checkedAt)}
-            </small>
+          </div>
+
+          <div className="security-overview-metrics">
+            <p className="eyebrow">Severity overview</p>
+            <ul className="security-severity-counts">
+              {VIGIL_SEVERITY_ORDER.map((severity) => {
+                const color = severityColor(data, severity);
+                const count = summary.counts[severity] || 0;
+                return (
+                  <li key={severity}>
+                    <span
+                      className="security-severity-dot"
+                      style={color ? { background: color } : undefined}
+                    />
+                    <span className="security-severity-label">
+                      {SEVERITY_DISPLAY[severity]}
+                    </span>
+                    <b>{count}</b>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="security-status-summary">
+              <p className="security-status-summary-title">Status</p>
+              <ul className="security-status-summary-list">
+                {VIGIL_STATUS_ORDER.map((status) => (
+                  <li key={status}>
+                    <span
+                      className={classNames(
+                        "label",
+                        `label-status-${status}`,
+                      )}
+                    >
+                      {statusLabel(data, status)}
+                    </span>
+                    <b>{statusCounts[status]}</b>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
+
+        <footer className="security-overview-footer">
+          <div className="security-host-identity">
+            <Monitor size={16} aria-hidden />
+            <div>
+              <b>
+                {dashboard.hosts.map((host) => host.displayName).join(" · ") ||
+                  "No hosts in feed"}
+              </b>
+              {dashboard.hosts.length === 1 && dashboard.hosts[0].os ? (
+                <span>{dashboard.hosts[0].os}</span>
+              ) : null}
+            </div>
+          </div>
+          <div className="security-overview-meta">
+            <span>
+              Feed updated {formatWhen(dashboard.updatedAt || data.checkedAt)}
+            </span>
+            <span className="security-readonly-badge">
+              <Lock size={12} aria-hidden /> Read-only
+            </span>
+            <span className="muted">
+              Source {dashboard.source} ·{" "}
+              <code className="inline-code">vigil/issues.json</code>
+            </span>
+          </div>
+        </footer>
       </section>
 
-      <div className="toolbar reveal delay-2">
-        <div className="segmented">
-          <button
-            className={statusFilter === "active" ? "active" : ""}
-            onClick={() => setStatusFilter("active")}
-          >
-            Active
-          </button>
-          <button
-            className={statusFilter === "all" ? "active" : ""}
-            onClick={() => setStatusFilter("all")}
-          >
-            All
-          </button>
+      <section className="panel security-workspace reveal delay-2">
+        <div className="security-queue">
+          <header className="security-queue-head">
+            <p className="eyebrow">Issue queue</p>
+            <h3>Vigil order</h3>
+            <small className="muted">{issues.length} ranked</small>
+          </header>
+          {issues.length ? (
+            <ul className="security-queue-list" role="listbox" aria-label="Security issues">
+              {issues.map((issue) => (
+                <SecurityQueueRow
+                  key={issue.id}
+                  issue={issue}
+                  data={data}
+                  selected={selectedIssue?.id === issue.id}
+                  onSelect={() => setSelectedId(issue.id)}
+                />
+              ))}
+            </ul>
+          ) : (
+            <div className="security-queue-empty">
+              <p>No issues in this feed.</p>
+            </div>
+          )}
         </div>
-        <small className="muted">
-          Source {dashboard.source} · {issues.length} shown · file{" "}
-          <code className="inline-code">vigil/issues.json</code>
-        </small>
-      </div>
 
-      <div className="security-issue-list reveal delay-3">
-        {issues.map((issue) => (
-          <SecurityIssueCard
-            key={issue.id}
-            issue={issue}
-            data={data}
-            host={hostLabel(data, issue.hostId)}
-          />
-        ))}
-        {!issues.length && (
-          <section className="panel empty-state">
-            <ShieldCheck size={24} />
-            <h2>No active issues</h2>
-            <p>Everything in Vigil&apos;s feed is remediated or closed.</p>
-          </section>
-        )}
-      </div>
+        <div className="security-detail" aria-live="polite">
+          {selectedIssue ? (
+            <SecurityIssueDetail issue={selectedIssue} data={data} />
+          ) : (
+            <div className="security-detail-empty">
+              <p>Select an issue from the queue.</p>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function SecurityIssueCard({
+function SecurityQueueRow({
   issue,
   data,
-  host,
+  selected,
+  onSelect,
 }: {
   issue: VigilSecurityIssue;
   data: VigilSecurityFeedResponse;
-  host: string;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const color = severityColor(data, issue.severity);
   return (
-    <article
-      className={classNames(
-        "panel security-issue-card",
-        `security-status-${issue.status}`,
-      )}
-      style={
-        color
-          ? {
-              borderLeftColor: color,
-              borderLeftWidth: 4,
-              borderLeftStyle: "solid",
-            }
-          : undefined
-      }
-    >
-      <div className="security-issue-top">
-        <div className="security-issue-badges">
+    <li role="presentation">
+      <button
+        type="button"
+        role="option"
+        aria-selected={selected}
+        className={classNames(
+          "security-queue-item",
+          selected && "security-queue-item-selected",
+        )}
+        style={
+          color
+            ? ({ "--queue-accent": color } as CSSProperties)
+            : undefined
+        }
+        onClick={onSelect}
+      >
+        <span
+          className="security-queue-accent"
+          style={color ? { background: color } : undefined}
+        />
+        <span className="security-queue-text">
+          <span className="security-queue-title">{issue.title}</span>
+          <span
+            className={classNames("label", `label-status-${issue.status}`)}
+          >
+            {statusLabel(data, issue.status)}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function SecurityIssueDetail({
+  issue,
+  data,
+}: {
+  issue: VigilSecurityIssue;
+  data: VigilSecurityFeedResponse;
+}) {
+  const color = severityColor(data, issue.severity);
+  const host = hostForIssue(data, issue.hostId);
+  const reportPaths = issue.reportPaths?.filter(Boolean) ?? [];
+
+  return (
+    <article className="security-detail-card">
+      <header className="security-detail-head">
+        <div className="security-detail-badges">
           <span
             className="security-chip"
             style={
@@ -271,28 +411,79 @@ function SecurityIssueCard({
           >
             {issue.severity}
           </span>
-          <span className={classNames("label", `label-status-${issue.status}`)}>
+          <span
+            className={classNames("label", `label-status-${issue.status}`)}
+          >
             {statusLabel(data, issue.status)}
           </span>
-          {typeof issue.rank === "number" && (
-            <span className="label label-neutral">rank {issue.rank}</span>
-          )}
         </div>
-        <small>{host}</small>
-      </div>
-      <h3>{issue.title}</h3>
-      {issue.notes ? <p>{issue.notes}</p> : null}
-      <div className="security-issue-meta">
-        <span>Updated {formatWhen(issue.updatedAt)}</span>
-        {issue.flowItemId != null && (
-          <span>Flow item {String(issue.flowItemId)}</span>
+        <h3>{issue.title}</h3>
+      </header>
+
+      {issue.notes ? (
+        <section className="security-detail-block">
+          <h4>Notes</h4>
+          <p>{issue.notes}</p>
+        </section>
+      ) : null}
+
+      <dl className="security-detail-facts">
+        <div>
+          <dt>Host</dt>
+          <dd>
+            <b>{host?.displayName || issue.hostId}</b>
+            {host?.os ? <span>{host.os}</span> : null}
+          </dd>
+        </div>
+        <div>
+          <dt>Flow</dt>
+          <dd>
+            {issue.flowProjectId == null && issue.flowItemId == null
+              ? "—"
+              : [
+                  issue.flowProjectId != null
+                    ? `Project ${String(issue.flowProjectId)}`
+                    : null,
+                  issue.flowItemId != null
+                    ? `Item ${String(issue.flowItemId)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+          </dd>
+        </div>
+        <div>
+          <dt>Reports</dt>
+          <dd>
+            {reportPaths.length ? (
+              <ul className="security-report-list">
+                {reportPaths.map((path) => (
+                  <li key={path}>
+                    <FileText size={13} aria-hidden />
+                    <code>{path}</code>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Discovered</dt>
+          <dd>{formatWhen(issue.discoveredAt)}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{formatWhen(issue.updatedAt)}</dd>
+        </div>
+        {typeof issue.rank === "number" && (
+          <div>
+            <dt>Vigil rank</dt>
+            <dd>{issue.rank}</dd>
+          </div>
         )}
-        {issue.reportPaths?.[0] ? (
-          <span className="security-report-path" title={issue.reportPaths[0]}>
-            Report on file
-          </span>
-        ) : null}
-      </div>
+      </dl>
     </article>
   );
 }
