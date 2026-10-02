@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   CircleAlert,
   FileText,
@@ -198,9 +198,7 @@ export function SecurityDashboard({ data, loading, error, refresh }: Props) {
         className="security-hero panel reveal delay-1"
         style={
           accent
-            ? {
-                "--security-accent": accent,
-              }
+            ? ({ "--security-accent": accent } as CSSProperties)
             : undefined
         }
       >
@@ -504,9 +502,7 @@ function SecurityFindingRow({
       )}
       style={
         color
-          ? {
-              "--finding-severity": color,
-            }
+          ? ({ "--finding-severity": color } as CSSProperties)
           : undefined
       }
     >
