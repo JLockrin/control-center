@@ -1,14 +1,13 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   CircleAlert,
   FileText,
+  Lock,
   Monitor,
   RefreshCw,
   Shield,
-  ShieldAlert,
-  ShieldCheck,
 } from "lucide-react";
 import type {
   VigilSecurityFeedResponse,
@@ -33,6 +32,14 @@ const VIGIL_STATUS_ORDER: VigilSecurityStatus[] = [
   "wont_fix",
 ];
 
+const SEVERITY_DISPLAY: Record<VigilSecuritySeverity, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+  info: "Info",
+};
+
 function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
@@ -48,12 +55,11 @@ function formatWhen(value: string) {
   }).format(date);
 }
 
-function hostLabel(
+function hostForIssue(
   data: VigilSecurityFeedResponse | null,
   hostId: string,
 ) {
-  const host = data?.dashboard?.hosts.find((entry) => entry.id === hostId);
-  return host?.displayName || hostId;
+  return data?.dashboard?.hosts.find((entry) => entry.id === hostId) ?? null;
 }
 
 function statusLabel(
@@ -82,34 +88,53 @@ function countByStatus(issues: VigilSecurityIssue[]) {
   return counts;
 }
 
-function topSeverityColor(
-  data: VigilSecurityFeedResponse | null,
+function severityDonutBackground(
+  data: VigilSecurityFeedResponse,
   counts: Record<VigilSecuritySeverity, number>,
+  total: number,
 ) {
+  if (!total) return "conic-gradient(var(--line) 0deg 360deg)";
+  const stops: string[] = [];
+  let acc = 0;
   for (const severity of VIGIL_SEVERITY_ORDER) {
-    if ((counts[severity] || 0) > 0) {
-      return severityColor(data, severity);
-    }
+    const count = counts[severity] || 0;
+    if (!count) continue;
+    const color = severityColor(data, severity) || "var(--line-dark)";
+    const start = (acc / total) * 100;
+    acc += count;
+    const end = (acc / total) * 100;
+    stops.push(`${color} ${start}% ${end}%`);
   }
-  return "";
+  if (!stops.length) return "conic-gradient(var(--line) 0deg 360deg)";
+  return `conic-gradient(${stops.join(", ")})`;
 }
 
 export function SecurityDashboard({ data, loading, error, refresh }: Props) {
-  const [statusFilter, setStatusFilter] = useState<"active" | "all">("active");
-
-  const issues = useMemo(() => {
-    const list = data?.dashboard?.issues || [];
-    if (statusFilter === "all") return list;
-    return list.filter(
-      (issue) =>
-        issue.status === "open" || issue.status === "in_progress",
-    );
-  }, [data, statusFilter]);
+  const issues = data?.dashboard?.issues ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const statusCounts = useMemo(
-    () => countByStatus(data?.dashboard?.issues || []),
-    [data],
+    () => countByStatus(issues),
+    [issues],
   );
+
+  const selectedIssue = useMemo(() => {
+    if (!issues.length) return null;
+    if (selectedId) {
+      const match = issues.find((issue) => issue.id === selectedId);
+      if (match) return match;
+    }
+    return issues[0];
+  }, [issues, selectedId]);
+
+  useEffect(() => {
+    if (!issues.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (selectedId && issues.some((issue) => issue.id === selectedId)) return;
+    setSelectedId(issues[0].id);
+  }, [issues, selectedId]);
 
   if (loading && !data) {
     return (
@@ -170,12 +195,9 @@ export function SecurityDashboard({ data, loading, error, refresh }: Props) {
 
   const summary = data.summary;
   const dashboard = data.dashboard;
-  const accent = topSeverityColor(data, summary.counts);
-  const activeCount = statusCounts.open + statusCounts.in_progress;
-  const closedPosture =
-    statusCounts.remediated +
-    statusCounts.accepted_risk +
-    statusCounts.wont_fix;
+  const donutStyle = {
+    background: severityDonutBackground(data, summary.counts, summary.total),
+  } as CSSProperties;
 
   return (
     <div className="view security-view">
@@ -194,363 +216,274 @@ export function SecurityDashboard({ data, loading, error, refresh }: Props) {
         </button>
       </div>
 
-      <section
-        className="security-hero panel reveal delay-1"
-        style={
-          accent
-            ? ({ "--security-accent": accent } as CSSProperties)
-            : undefined
-        }
-      >
-        <div className="security-hero-main">
-          <div className="security-hero-icon" aria-hidden>
-            {activeCount > 0 ? <ShieldAlert size={28} /> : <ShieldCheck size={28} />}
+      <section className="panel security-overview reveal delay-1">
+        <div className="security-overview-top">
+          <div
+            className="security-donut"
+            style={donutStyle}
+            role="img"
+            aria-label={`Issue composition: ${summary.total} total`}
+          >
+            <div className="security-donut-center">
+              <b>{summary.total}</b>
+              <span>issues</span>
+            </div>
           </div>
-          <div>
-            <p className="security-hero-kicker">Vigil posture</p>
-            <h2 className="security-hero-title">
-              {activeCount > 0
-                ? `${activeCount} finding${activeCount === 1 ? "" : "s"} need attention`
-                : "No active findings in the feed"}
-            </h2>
-            <p className="security-hero-meta">
-              {summary.total} ranked in feed · {summary.remediatedCount}{" "}
-              {statusLabel(data, "remediated").toLowerCase()} · updated{" "}
-              {formatWhen(dashboard.updatedAt || data.checkedAt)}
-            </p>
-          </div>
-        </div>
-        <div className="security-hero-stats">
-          <div className="security-hero-stat">
-            <span>{statusLabel(data, "open")}</span>
-            <b>{statusCounts.open}</b>
-          </div>
-          <div className="security-hero-stat">
-            <span>{statusLabel(data, "in_progress")}</span>
-            <b>{statusCounts.in_progress}</b>
-          </div>
-          <div className="security-hero-stat security-hero-stat-muted">
-            <span>{statusLabel(data, "remediated")}</span>
-            <b>{statusCounts.remediated}</b>
-          </div>
-        </div>
-      </section>
 
-      <div className="security-dashboard-grid reveal delay-2">
-        <div className="security-analytics-stack">
-          <section className="panel security-panel">
-            <header className="security-panel-head">
-              <div>
-                <p className="eyebrow">Composition</p>
-                <h3>Severity mix</h3>
-              </div>
-              <span className="security-panel-total">{summary.total} issues</span>
-            </header>
-            <SeverityStackBar data={data} counts={summary.counts} total={summary.total} />
-            <ul className="security-severity-legend">
+          <div className="security-overview-metrics">
+            <p className="eyebrow">Severity overview</p>
+            <ul className="security-severity-counts">
               {VIGIL_SEVERITY_ORDER.map((severity) => {
                 const color = severityColor(data, severity);
                 const count = summary.counts[severity] || 0;
                 return (
                   <li key={severity}>
                     <span
-                      className="security-severity-swatch"
+                      className="security-severity-dot"
                       style={color ? { background: color } : undefined}
                     />
-                    <span className="security-severity-name">{severity}</span>
+                    <span className="security-severity-label">
+                      {SEVERITY_DISPLAY[severity]}
+                    </span>
                     <b>{count}</b>
                   </li>
                 );
               })}
             </ul>
-          </section>
 
-          <section className="panel security-panel">
-            <header className="security-panel-head">
-              <div>
-                <p className="eyebrow">Remediation</p>
-                <h3>Status breakdown</h3>
-              </div>
-              <span className="security-panel-total">
-                {closedPosture} closed posture
-              </span>
-            </header>
-            <StatusStackBar
-              data={data}
-              counts={statusCounts}
-              total={summary.total}
-            />
-            <ul className="security-status-legend">
-              {VIGIL_STATUS_ORDER.map((status) => (
-                <li key={status}>
-                  <span
-                    className={classNames(
-                      "label",
-                      `label-status-${status}`,
-                    )}
-                  >
-                    {statusLabel(data, status)}
-                  </span>
-                  <b>{statusCounts[status]}</b>
-                </li>
+            <div className="security-status-summary">
+              <p className="security-status-summary-title">Status</p>
+              <ul className="security-status-summary-list">
+                {VIGIL_STATUS_ORDER.map((status) => (
+                  <li key={status}>
+                    <span
+                      className={classNames(
+                        "label",
+                        `label-status-${status}`,
+                      )}
+                    >
+                      {statusLabel(data, status)}
+                    </span>
+                    <b>{statusCounts[status]}</b>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <footer className="security-overview-footer">
+          <div className="security-host-identity">
+            <Monitor size={16} aria-hidden />
+            <div>
+              <b>
+                {dashboard.hosts.map((host) => host.displayName).join(" · ") ||
+                  "No hosts in feed"}
+              </b>
+              {dashboard.hosts.length === 1 && dashboard.hosts[0].os ? (
+                <span>{dashboard.hosts[0].os}</span>
+              ) : null}
+            </div>
+          </div>
+          <div className="security-overview-meta">
+            <span>
+              Feed updated {formatWhen(dashboard.updatedAt || data.checkedAt)}
+            </span>
+            <span className="security-readonly-badge">
+              <Lock size={12} aria-hidden /> Read-only
+            </span>
+            <span className="muted">
+              Source {dashboard.source} ·{" "}
+              <code className="inline-code">vigil/issues.json</code>
+            </span>
+          </div>
+        </footer>
+      </section>
+
+      <section className="panel security-workspace reveal delay-2">
+        <div className="security-queue">
+          <header className="security-queue-head">
+            <p className="eyebrow">Issue queue</p>
+            <h3>Vigil order</h3>
+            <small className="muted">{issues.length} ranked</small>
+          </header>
+          {issues.length ? (
+            <ul className="security-queue-list" role="listbox" aria-label="Security issues">
+              {issues.map((issue) => (
+                <SecurityQueueRow
+                  key={issue.id}
+                  issue={issue}
+                  data={data}
+                  selected={selectedIssue?.id === issue.id}
+                  onSelect={() => setSelectedId(issue.id)}
+                />
               ))}
             </ul>
-          </section>
+          ) : (
+            <div className="security-queue-empty">
+              <p>No issues in this feed.</p>
+            </div>
+          )}
         </div>
 
-        <section className="panel security-panel security-hosts-panel">
-          <header className="security-panel-head">
-            <div>
-              <p className="eyebrow">Scope</p>
-              <h3>Hosts in feed</h3>
+        <div className="security-detail" aria-live="polite">
+          {selectedIssue ? (
+            <SecurityIssueDetail issue={selectedIssue} data={data} />
+          ) : (
+            <div className="security-detail-empty">
+              <p>Select an issue from the queue.</p>
             </div>
-            <span className="security-panel-total">
-              {dashboard.hosts.length} host
-              {dashboard.hosts.length === 1 ? "" : "s"}
-            </span>
-          </header>
-          <ul className="security-host-list">
-            {dashboard.hosts.map((host) => {
-              const hostIssues = dashboard.issues.filter(
-                (issue) => issue.hostId === host.id,
-              );
-              const hostActive = hostIssues.filter(
-                (issue) =>
-                  issue.status === "open" || issue.status === "in_progress",
-              ).length;
-              return (
-                <li key={host.id} className="security-host-card">
-                  <div className="security-host-icon" aria-hidden>
-                    <Monitor size={20} />
-                  </div>
-                  <div className="security-host-body">
-                    <b>{host.displayName}</b>
-                    {host.os ? <span>{host.os}</span> : null}
-                    {host.machineId ? (
-                      <code className="security-host-id">{host.machineId}</code>
-                    ) : null}
-                  </div>
-                  <div className="security-host-counts">
-                    <span>
-                      <strong>{hostIssues.length}</strong> findings
-                    </span>
-                    <span>
-                      <strong>{hostActive}</strong> active
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="security-source-line">
-            Source <strong>{dashboard.source}</strong> · file{" "}
-            <code className="inline-code">vigil/issues.json</code>
-          </p>
-        </section>
-      </div>
-
-      <div className="security-findings-toolbar reveal delay-3">
-        <div className="segmented">
-          <button
-            className={statusFilter === "active" ? "active" : ""}
-            onClick={() => setStatusFilter("active")}
-          >
-            Active
-          </button>
-          <button
-            className={statusFilter === "all" ? "active" : ""}
-            onClick={() => setStatusFilter("all")}
-          >
-            All ranked
-          </button>
+          )}
         </div>
-        <small className="muted">
-          {issues.length} shown · Vigil sort order preserved
-        </small>
-      </div>
-
-      <section className="panel security-findings-panel reveal delay-4">
-        <header className="security-findings-head">
-          <div>
-            <p className="eyebrow">Findings</p>
-            <h3>Ranked issues</h3>
-          </div>
-        </header>
-        {issues.length ? (
-          <ol className="security-findings-list">
-            {issues.map((issue, index) => (
-              <SecurityFindingRow
-                key={issue.id}
-                issue={issue}
-                data={data}
-                index={index + 1}
-                host={hostLabel(data, issue.hostId)}
-                showHost={dashboard.hosts.length > 1}
-              />
-            ))}
-          </ol>
-        ) : (
-          <div className="security-findings-empty">
-            <ShieldCheck size={24} />
-            <div>
-              <b>No active issues</b>
-              <p>Everything in Vigil&apos;s feed is remediated or closed.</p>
-            </div>
-          </div>
-        )}
       </section>
     </div>
   );
 }
 
-function SeverityStackBar({
-  data,
-  counts,
-  total,
-}: {
-  data: VigilSecurityFeedResponse;
-  counts: Record<VigilSecuritySeverity, number>;
-  total: number;
-}) {
-  if (!total) {
-    return <div className="security-stack-bar security-stack-bar-empty">No issues</div>;
-  }
-  return (
-    <div
-      className="security-stack-bar security-stack-bar-severity"
-      role="img"
-      aria-label="Issue count by severity"
-    >
-      {VIGIL_SEVERITY_ORDER.map((severity) => {
-        const count = counts[severity] || 0;
-        if (!count) return null;
-        const color = severityColor(data, severity);
-        const width = (count / total) * 100;
-        return (
-          <span
-            key={severity}
-            className="security-stack-segment"
-            style={{
-              flexGrow: count,
-              flexBasis: `${width}%`,
-              background: color || undefined,
-            }}
-            title={`${severity}: ${count}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function StatusStackBar({
-  data,
-  counts,
-  total,
-}: {
-  data: VigilSecurityFeedResponse;
-  counts: Record<VigilSecurityStatus, number>;
-  total: number;
-}) {
-  if (!total) {
-    return <div className="security-stack-bar security-stack-bar-empty">No issues</div>;
-  }
-  return (
-    <div
-      className="security-stack-bar security-stack-bar-status"
-      role="img"
-      aria-label="Issue count by remediation status"
-    >
-      {VIGIL_STATUS_ORDER.map((status) => {
-        const count = counts[status] || 0;
-        if (!count) return null;
-        return (
-          <span
-            key={status}
-            className={classNames(
-              "security-stack-segment",
-              `security-stack-status-${status}`,
-            )}
-            style={{ flexGrow: count }}
-            title={`${statusLabel(data, status)}: ${count}`}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function SecurityFindingRow({
+function SecurityQueueRow({
   issue,
   data,
-  index,
-  host,
-  showHost,
+  selected,
+  onSelect,
 }: {
   issue: VigilSecurityIssue;
   data: VigilSecurityFeedResponse;
-  index: number;
-  host: string;
-  showHost: boolean;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const color = severityColor(data, issue.severity);
   return (
-    <li
-      className={classNames(
-        "security-finding-row",
-        `security-finding-status-${issue.status}`,
-      )}
-      style={
-        color
-          ? ({ "--finding-severity": color } as CSSProperties)
-          : undefined
-      }
-    >
-      <div className="security-finding-rank" aria-hidden>
-        <span>{index}</span>
-      </div>
-      <div className="security-finding-severity" aria-hidden>
+    <li role="presentation">
+      <button
+        type="button"
+        role="option"
+        aria-selected={selected}
+        className={classNames(
+          "security-queue-item",
+          selected && "security-queue-item-selected",
+        )}
+        style={
+          color
+            ? ({ "--queue-accent": color } as CSSProperties)
+            : undefined
+        }
+        onClick={onSelect}
+      >
         <span
-          className="security-finding-severity-bar"
+          className="security-queue-accent"
           style={color ? { background: color } : undefined}
         />
-        <span
-          className="security-chip security-finding-chip"
-          style={
-            color
-              ? { background: color, color: "#fff", borderColor: color }
-              : undefined
-          }
-        >
-          {issue.severity}
+        <span className="security-queue-text">
+          <span className="security-queue-title">{issue.title}</span>
+          <span
+            className={classNames("label", `label-status-${issue.status}`)}
+          >
+            {statusLabel(data, issue.status)}
+          </span>
         </span>
-      </div>
-      <div className="security-finding-body">
-        <div className="security-finding-title-row">
-          <h4>{issue.title}</h4>
+      </button>
+    </li>
+  );
+}
+
+function SecurityIssueDetail({
+  issue,
+  data,
+}: {
+  issue: VigilSecurityIssue;
+  data: VigilSecurityFeedResponse;
+}) {
+  const color = severityColor(data, issue.severity);
+  const host = hostForIssue(data, issue.hostId);
+  const reportPaths = issue.reportPaths?.filter(Boolean) ?? [];
+
+  return (
+    <article className="security-detail-card">
+      <header className="security-detail-head">
+        <div className="security-detail-badges">
+          <span
+            className="security-chip"
+            style={
+              color
+                ? { background: color, color: "#fff", borderColor: color }
+                : undefined
+            }
+          >
+            {issue.severity}
+          </span>
           <span
             className={classNames("label", `label-status-${issue.status}`)}
           >
             {statusLabel(data, issue.status)}
           </span>
         </div>
-        {issue.notes ? <p>{issue.notes}</p> : null}
-        <div className="security-finding-meta">
-          {showHost ? <span>{host}</span> : null}
-          {typeof issue.rank === "number" && (
-            <span>Vigil rank {issue.rank}</span>
-          )}
-          <span>Updated {formatWhen(issue.updatedAt)}</span>
-          {issue.flowItemId != null && (
-            <span>Flow item {String(issue.flowItemId)}</span>
-          )}
-          {issue.reportPaths?.[0] ? (
-            <span className="security-report-path" title={issue.reportPaths[0]}>
-              <FileText size={12} /> Report on file
-            </span>
-          ) : null}
+        <h3>{issue.title}</h3>
+      </header>
+
+      {issue.notes ? (
+        <section className="security-detail-block">
+          <h4>Notes</h4>
+          <p>{issue.notes}</p>
+        </section>
+      ) : null}
+
+      <dl className="security-detail-facts">
+        <div>
+          <dt>Host</dt>
+          <dd>
+            <b>{host?.displayName || issue.hostId}</b>
+            {host?.os ? <span>{host.os}</span> : null}
+          </dd>
         </div>
-      </div>
-    </li>
+        <div>
+          <dt>Flow</dt>
+          <dd>
+            {issue.flowProjectId == null && issue.flowItemId == null
+              ? "—"
+              : [
+                  issue.flowProjectId != null
+                    ? `Project ${String(issue.flowProjectId)}`
+                    : null,
+                  issue.flowItemId != null
+                    ? `Item ${String(issue.flowItemId)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+          </dd>
+        </div>
+        <div>
+          <dt>Reports</dt>
+          <dd>
+            {reportPaths.length ? (
+              <ul className="security-report-list">
+                {reportPaths.map((path) => (
+                  <li key={path}>
+                    <FileText size={13} aria-hidden />
+                    <code>{path}</code>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Discovered</dt>
+          <dd>{formatWhen(issue.discoveredAt)}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{formatWhen(issue.updatedAt)}</dd>
+        </div>
+        {typeof issue.rank === "number" && (
+          <div>
+            <dt>Vigil rank</dt>
+            <dd>{issue.rank}</dd>
+          </div>
+        )}
+      </dl>
+    </article>
   );
 }
